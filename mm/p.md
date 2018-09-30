@@ -1,5 +1,6 @@
 # P
 
+
 ## PAGE_ALIGN 
 a standard macro that must be defined by each architecture(typically in page.h). It expects an address as parameter and "rounds" the address so that it is exactly at the start of the next page.
 
@@ -7,8 +8,35 @@ a standard macro that must be defined by each architecture(typically in page.h).
 
 the virtual address at which the kernel portion starts, since the physical memory is mapped to the virtual memory space of the kernel. For a limited range, the physical memory plus PAGE_OFFSET gives you the virtual memory of the memory for the kernel
 
+## _PAGE_ACCESSED
+a flag in superfluous bit in PTE entry. It is set automatically by the CPU each time the page is accessed. The kernel regularly checks the field to establish how actively the page is used(in frequently used pages are good swapping candidates). The bit is set after either read or write access.
+
+## _PAGE_BIT_NX
+a flag in superfluous bit in PTE entry. Only IA-32 and AMD64 provide this information. It labels that the page is not executable.
+
+## _PAGE_DIRTY
+a flag in superfluous bit in PTE entry. It indicates whether the page is "dirty", that is, whether the page contents have been modified.
+
 ## _PAGE_PRESENT
 a flag in superfluous bit in PTE entry that specifies whether the virtual page is present in RAM memory. This need not necessary be the case because pages may be swapped out into a swap area.
+
+## _PAGE_READ
+a flag in superfluous bit in PTE entry. It specifies whether normal user process is allowed to read the page.
+
+## _PAGE_RW
+a flag in superfluous bit in PTE entry. It is used for architectures that lacks a finer grain of controlling _PAGE_READ and _PAGE_WRITE. It specifies whether the page is allowed to read or write from a normal user process.
+
+## _PAGE_USER
+a flag in superfluous bit in PTE entry. If _PAGE_USER is set, userspace code is allowed to access the page. Otherwise, only the kernel is allowed to do this.
+
+## _PAGE_WRITE
+a flag in superfluous bit in PTE entry. Specify whether a normal user process is allowed to write to the page
+
+## _PAGE_EXECUTE
+a flag in superfluous bit in PTE entry. Specify whether a normal user process is allowed to execute the machine code in the page
+
+## __pgprot
+this data type holds addtional bits in an PTE entry
 
 ## pgd_bad
 check whether entries of the global page directory is valid. The semantics is fuzzy across different architectures. They are used for safety purposes in functions that receive input parameters from the outside where it cannot be assumed that the parameters are valid.
@@ -67,14 +95,23 @@ convert an unsigned long to pmd_t
 ## pte_clear
 delete the passed page table entry. This is usually done by setting it to zero
 
+## pte_modify
+function provided all architecture to modify the flags of a page entry
+
 ## pte_page
 return the address of the page holding the page entry
 
 ## pte_present
-check whether the PAGE_VALID bit of the entry is set
+check whether the PAGE_VALID bit of the entry is set. It means whether the page is present or swapped out.
+
+## pte_read
+function that checks whether the page table entry is readable from user space
 
 ## pte_t
 ?? direct entries of page tables
+
+## pte_write
+function that checks whether the page table entry is writable from user space
 
 ## pte_val
 convert a variable of pte_t to unsigned long
