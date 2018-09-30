@@ -75,6 +75,15 @@ convert a variable of type pte_t to an unsigned long number
 ## pgd_present
 check whether the PAGE_VALID bit of the entry is set
 
+## pg_data_t
+
+typedef of struct pglist_data
+
+## pglist_data
+
+a struct type holding memory statistics and page replacement data of a zone.
+struct pglist_data is typedef-ed as pg_data_t
+
 ## __pgd
 convert an unsigned long to pgd_t
 
