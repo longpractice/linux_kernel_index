@@ -38,11 +38,18 @@ a flag in superfluous bit in PTE entry. Specify whether a normal user process is
 ## __pgprot
 this data type holds addtional bits in an PTE entry
 
+## pgd_alloc
+reserve and initialize memory to hold a complete page global directory table
+
 ## pgd_bad
 check whether entries of the global page directory is valid. The semantics is fuzzy across different architectures. They are used for safety purposes in functions that receive input parameters from the outside where it cannot be assumed that the parameters are valid.
 
 ## pgd_clear
 delete the passed page table entry. This is usually done by setting it to zero
+
+## pgd_free
+Must be implemented by all architectures.
+free the memory occupied by the page global directory
 
 ## pgd_present
 check whether the PAGE_VALID bit of the corresponding entry is set. This is the case when the page or page table addressed is in RAM memory
@@ -71,11 +78,19 @@ check whether the PAGE_VALID bit of the entry is set
 ## __pgd
 convert an unsigned long to pgd_t
 
+## pmd_alloc
+Must be implemented by all architectures.
+reserve and initialize memory to hold a complete page middle directory table
+
 ## pmd_bad
 check whether the page middle directory entry is valid. The semantics is somewhat fuzzy across different architecture. Used for safety purposes in functions that receive input parameters from the outside where it cannot be assumed that the parameters are valid.
 
 ## pmd_clear
 delete the passed page table entry. This is usually done by setting it to zero
+
+## pmd_free
+Must be implemented by all architectures.
+free the memory occupied by the page middle directory
 
 ## pmd_offset
 given an global page directory and a virtual address, return a page middle entry containing the address 
@@ -92,13 +107,22 @@ convert a variable of type pmd_t to an unsigned long number
 ## __pmd
 convert an unsigned long to pmd_t
 
+## pte_alloc 
+Must be implemented by all architectures.
+allocate and initialize memory to hold a whole page table
+
 ## pte_clear
 delete the passed page table entry. This is usually done by setting it to zero
+
+## pte_free
+Must be implemented by all architectures.
+free the memory occupied by a page table entry
 
 ## pte_modify
 function provided all architecture to modify the flags of a page entry
 
 ## pte_page
+Must be implemented by all architectures.
 return the address of the page holding the page entry
 
 ## pte_present
@@ -119,11 +143,18 @@ convert a variable of pte_t to unsigned long
 ## __pte
 convert an unsigned long to pte_t
 
+## pud_alloc
+reserve and initialize memory to hold a complete page up directory table
+
 ## pud_bad
 checks whether the page upper directory is valid. The semantics is fuzzy across different archs. They are used for safety purposes in functions that receive input parameters from the outside where it cannot be assumed that the parameters are valid.
 
 ## pud_clear
 delete the passed page table entry. This is usually done by setting it to zero
+
+## pud_free
+Must be implemented by all architectures.
+free the memory occupied by a page upper directory
 
 ## pud_page
 return the address of page that holds the current page upper directory
