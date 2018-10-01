@@ -87,6 +87,14 @@ struct pglist_data is typedef-ed as pg_data_t
 ## __pgd
 convert an unsigned long to pgd_t
 
+## PHYSICAL_ALIGN
+a kernel configuration to set the alignment requirement for loading the kernel onto
+
+## PHYSICAL_START
+it is a kernel configuration to set the start physical address to load the kernel onto. The default value is 0x1000000 which is 16 megabytes.
+
+This field is ignored if config RELOCATABLE is enabled. 
+
 ## pmd_alloc
 Must be implemented by all architectures.
 reserve and initialize memory to hold a complete page middle directory table

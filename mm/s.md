@@ -28,3 +28,6 @@ routine used in start_kernel(). Contains architecture specific code. For SMP sys
 
 ## setup_per_cpu_pageset
 routine used in start_kernel(). Set up the pageset arrays from each struct zone.
+
+## System.map
+each time the kernel is compiled, a file named System.map is generated and stored in the source base directory. It shows the symbols and their addresses. The information during runtime could also be read from /proc/iomem.
