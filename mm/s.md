@@ -16,6 +16,9 @@ set the value of a page middle directory
 Must be implemented by all architectures.
 set ent value of a page table entry
 
+## __set_fixmap
+in x86, associate the fixmap to the physical addresses
+
 ## start_kernel
 global starte routine that is executed after kernel loading to start various subsystems
 

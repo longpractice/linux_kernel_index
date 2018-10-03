@@ -1,12 +1,16 @@
 # P
 
+## __pa()
+macro used by the kernel to convert linear-shifted-mapped virtual address to phycical memory address
 
 ## PAGE_ALIGN 
 a standard macro that must be defined by each architecture(typically in page.h). It expects an address as parameter and "rounds" the address so that it is exactly at the start of the next page.
 
 ## PAGE_OFFSET
+the virtual address at which the kernel portion starts, since the physical memory is mapped to the virtual memory space of the kernel. For a limited range, the physical memory plus PAGE_OFFSET gives you the virtual memory of the memory for the kernel. Normally in 3:1 user-space/kernel-space division for 4GB virtual mem space, it is 0xC0000000. You could set it differently, say 0x80000000 when it requires a large amount of memory for the kernel but little for the user processes, for example, network routers.
 
-the virtual address at which the kernel portion starts, since the physical memory is mapped to the virtual memory space of the kernel. For a limited range, the physical memory plus PAGE_OFFSET gives you the virtual memory of the memory for the kernel
+## PAGE_SHIFT
+page size in terms of power of 2. So a 4k page size gives a PAGE_SHIFT of 12
 
 ## _PAGE_ACCESSED
 a flag in superfluous bit in PTE entry. It is set automatically by the CPU each time the page is accessed. The kernel regularly checks the field to establish how actively the page is used(in frequently used pages are good swapping candidates). The bit is set after either read or write access.
@@ -34,6 +38,13 @@ a flag in superfluous bit in PTE entry. Specify whether a normal user process is
 
 ## _PAGE_EXECUTE
 a flag in superfluous bit in PTE entry. Specify whether a normal user process is allowed to execute the machine code in the page
+
+## parse_early_param()
+routine used in setup_arch() in start_kernel(). It concentrates on arguments like mem=XXX, highmen=XXX, or memmap=XXX arguments. The administrator can overwrite the size of available memory or manualy define memory areas if the kernel calculates an incorrect value or is proved with a wrong value by the BIOS. This option is only of relevance on older computers. highmem= permits overwriting of the highmen size value detected. It can be used on machines with a very large RAM configuration to limit available RAM size - as it sometimes yields performance gains.
+
+## persistent mapping 
+
+
 
 ## __pgprot
 this data type holds addtional bits in an PTE entry
@@ -94,6 +105,12 @@ a kernel configuration to set the alignment requirement for loading the kernel o
 it is a kernel configuration to set the start physical address to load the kernel onto. The default value is 0x1000000 which is 16 megabytes.
 
 This field is ignored if config RELOCATABLE is enabled. 
+
+## PKMAP_BASE
+in x86, defines the virtual address start of the permanent kernel mapping.
+```
+#define PKMAP_BASE ((LDT_BASE_ADDR - PAGE_SIZE) & PMD_MASK)
+```
 
 ## pmd_alloc
 Must be implemented by all architectures.
