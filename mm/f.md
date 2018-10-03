@@ -1,5 +1,8 @@
 # f
 
+## __flush_tlb_all()
+flush the tlb entries. In contrast to TLB flushes during context swtiches, pages with a _PAGE_GLOBAL bit are also flushed.
+
 ## __FIXADDR_TOP
 end of fixed kernel mapping virtual address
 

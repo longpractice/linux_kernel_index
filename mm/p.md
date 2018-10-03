@@ -21,6 +21,9 @@ a flag in superfluous bit in PTE entry. Only IA-32 and AMD64 provide this inform
 ## _PAGE_DIRTY
 a flag in superfluous bit in PTE entry. It indicates whether the page is "dirty", that is, whether the page contents have been modified.
 
+## _PAGE_GLOBAL
+a flag in superfluous bit in PTE entry for x86. The TLB entries of pages with a set _PAGE_GLOBAL bit are not flushed from the TLBs during context switches. If possible, kernel pages are provided with this page. Since the kernel is always present at the same location in the virtual address space, this enhances system performce, a welcome effect as kernel data must be made available as quickly as possible.
+
 ## _PAGE_PRESENT
 a flag in superfluous bit in PTE entry that specifies whether the virtual page is present in RAM memory. This need not necessary be the case because pages may be swapped out into a swap area.
 
@@ -38,6 +41,12 @@ a flag in superfluous bit in PTE entry. Specify whether a normal user process is
 
 ## _PAGE_EXECUTE
 a flag in superfluous bit in PTE entry. Specify whether a normal user process is allowed to execute the machine code in the page
+
+## paging_init()
+in x86, called by setup_arch(). For x86-32, paging_init() is responsible for setting up the page tables that can be used only by the kernel and are not accessible in user space. 
+
+## pagetable_init()
+in x86-32, called by paging_init() 
 
 ## parse_early_param()
 routine used in setup_arch() in start_kernel(). It concentrates on arguments like mem=XXX, highmen=XXX, or memmap=XXX arguments. The administrator can overwrite the size of available memory or manualy define memory areas if the kernel calculates an incorrect value or is proved with a wrong value by the BIOS. This option is only of relevance on older computers. highmem= permits overwriting of the highmen size value detected. It can be used on machines with a very large RAM configuration to limit available RAM size - as it sometimes yields performance gains.
