@@ -1,5 +1,7 @@
 # f
 
+
+
 ## __flush_tlb_all()
 flush the tlb entries. In contrast to TLB flushes during context swtiches, pages with a _PAGE_GLOBAL bit are also flushed.
 
@@ -14,7 +16,7 @@ in x86, calculates the virtual address of a fixmap constant
 
 ## __fixed_to_virt
 in x86, used by fixed_to_virt. 
-```
+```c
 #define __fix_to_virt(x) (FIXADDR_TOP - ((x) << PAGE_SHIFT))
 ```
 so the x is the number of pages counting down from the FIXADDR_TOP.

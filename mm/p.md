@@ -45,6 +45,15 @@ a flag in superfluous bit in PTE entry. Specify whether a normal user process is
 ## paging_init()
 in x86, called by setup_arch(). For x86-32, paging_init() is responsible for setting up the page tables that can be used only by the kernel and are not accessible in user space. 
 
+In both x86-64 and x86-32, the calling sequence is
+paging_init()-->
+free_area_init_nodes()-->
+free_area_init_node()-->
+free_area_init_core()-->
+zone_init_internals()-->
+zone_pcp_init()
+ 
+
 ## pagetable_init()
 in x86-32, called by paging_init() 
 
@@ -78,7 +87,7 @@ check whether the PAGE_VALID bit of the corresponding entry is set. This is the 
 
 in include/asm-generic/page.h, defined as
 
-```
+```c
 typedef struct {
 	unsigned long pgd;
 } pgd_t;

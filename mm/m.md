@@ -2,7 +2,7 @@
 
 
 ## managed_zone
-```
+```c
 /*
  * Returns true if a zone has pages managed by the buddy allocator.
  * All the reclaim decisions have to use this function rather than

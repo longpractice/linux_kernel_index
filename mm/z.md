@@ -1,7 +1,7 @@
 # z
 
 ## zone_list
-```
+```c
 struct zonelist {
 	struct zoneref _zonerefs[MAX_ZONES_PER_ZONELIST + 1];
 };
@@ -9,9 +9,12 @@ struct zonelist {
 
 One allocation request operates on a zonelist. A zonelist is a list of zones, the first one is the 'goal' of the allocation, the other zones are fallback zones, in decreasing priority.
 
+## zone_pcp_init
+set up the zone pageset with the boot pageset.
+
 ## zoneref
 This struct contains information about a zone in a zonelist. It is stored here to avoid dereferences into large structures and lookups of tables.
-```
+```c
 struct zoneref {
 	struct zone *zone;	/* Pointer to actual zone */
 	int zone_idx;		/* zone_idx(zoneref->zone) */
@@ -20,7 +23,7 @@ struct zoneref {
 
 ## zoneref_set_zone(struct zone *zone, struct zoneref *zoneref)
 set a zoneref from a zone
-```
+```c
 static void zoneref_set_zone(struct zone *zone, struct zoneref *zoneref)
 {
 	zoneref->zone = zone;

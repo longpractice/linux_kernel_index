@@ -2,7 +2,7 @@
 
 ## e820_table
 
-```
+```c
 /*
  * The whole array of E820 entries:
  */

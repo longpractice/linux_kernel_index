@@ -8,7 +8,7 @@ a virtual memory area in kernel virtual memory space. Virtually contiguous memor
 
 ## VMALLOC_END
 the end of VMALLOC area of X86. In x86-32:
-```
+```c
 #ifdef CONFIG_HIGHMEM
 # define VMALLOC_END	(PKMAP_BASE - 2 * PAGE_SIZE)
 #else
