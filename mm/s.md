@@ -61,5 +61,19 @@ zone_pcp_init().
 
 It is also called after the build_all_zonelists() inside start_kernel(). The build_all_zonelists(), when called during booting, fill the pageset with boot-pageset.
 
+
+## sign extension approach
+The approach to use virtual address for x86-64 system to limit to only 47 effective bits.
+
+the first 47 bits of a virtual address, that is [0, 46], can be arbitrarily set. Bits in the range [47, 63], however, always need to have the same value: Either all are 0, or all are 1. Such addresses are called canonical. They divide the total address space into three parts, a lower half, a higher half, and a forbidden region in between. 
+
+The virtual address of the lower half is [0x0, 0x0000 7fff ffff ffff], while the subset for the top half is [0xFFFF 8000 0000 0000, 0xFFFF FFFF FFFF FFFF]. 
+
+The lower half is used for user space. The higher space is used for kernel space.
+
+## __START_KERNEL_MAP
+in x86-64, the kernel text is mapped into the region starting from __START_KERNEL, which is __START_KERNEL_MAP plus a compile-time configurable offset given by CONFIG_PHYSICAL_START. 
+
+## __START_KERNEL
 ## System.map
 each time the kernel is compiled, a file named System.map is generated and stored in the source base directory. It shows the symbols and their addresses. The information during runtime could also be read from /proc/iomem.

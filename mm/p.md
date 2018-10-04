@@ -7,7 +7,13 @@ macro used by the kernel to convert linear-shifted-mapped virtual address to phy
 a standard macro that must be defined by each architecture(typically in page.h). It expects an address as parameter and "rounds" the address so that it is exactly at the start of the next page.
 
 ## PAGE_OFFSET
-the virtual address at which the kernel portion starts, since the physical memory is mapped to the virtual memory space of the kernel. For a limited range, the physical memory plus PAGE_OFFSET gives you the virtual memory of the memory for the kernel. Normally in 3:1 user-space/kernel-space division for 4GB virtual mem space, it is 0xC0000000. You could set it differently, say 0x80000000 when it requires a large amount of memory for the kernel but little for the user processes, for example, network routers.
+the virtual address at which the kernel portion starts, since the physical memory is mapped to the virtual memory space of the kernel. For a limited range, the physical memory plus PAGE_OFFSET gives you the virtual memory of the memory for the kernel. 
+In x86-32, normally in 3:1 user-space/kernel-space division for 4GB virtual mem space, it is 0xC0000000. You could set it differently, say 0x80000000 when it requires a large amount of memory for the kernel but little for the user processes, for example, network routers.
+
+In x86-64, this value is 0xffff 8100 0000 0000 which is 0x100 0000 0000 more than the available kernel area of 0xffff 80000 0000 0000. This additional hole before is to prevent incidental access on the non-canonical portion of the address space that would result in a general protection exception raised by the processor.
+
+
+
 
 ## PAGE_SHIFT
 page size in terms of power of 2. So a 4k page size gives a PAGE_SHIFT of 12

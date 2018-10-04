@@ -1,5 +1,11 @@
 # k
 
+## KERNEL_TEXT_SIZE 
+in x86-64, donates the kernel text size.
+
+## KERNEL_TEXT_START
+in x86-64, donates the kernel text region start virtual address.
+
 ## kmap_get_fixmap_pte
 from a virtual address, construct a pte
 ```c
