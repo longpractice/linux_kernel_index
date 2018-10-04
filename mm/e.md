@@ -13,12 +13,13 @@ struct e820_table {
 ```
 
 ## e820__memory_setup(void)
-
 in x86 architecture, routine invoked inside setup_arch() which is inside start_kernel(). It creates a list with the memory regions occupied by the system and the free memory regions. It will call the e820__memory_setup_default() by default. It will also print out the memory information.
 
 ## e820__memory_setup_default(void)
-
 int x86 architecture, the default function called by e820__memory_setup(). Pass the firmware (bootloader) E820 map to the kernel and process it. It pops the variable of e820_table.
+
+## e820__register_active_regions
+in latest kernel, replaced by e820__memblock_setup()
 
 ## _edata
 the end of data section of the kernel binary. The data section starts from _etext, the end of the text section. It is also the start of data section that is no longer used after kernel initialization.

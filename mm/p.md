@@ -47,6 +47,7 @@ in x86, called by setup_arch(). For x86-32, paging_init() is responsible for set
 
 In both x86-64 and x86-32, the calling sequence is
 paging_init()-->
+zone_sizes_init()-->
 free_area_init_nodes()-->
 free_area_init_node()-->
 free_area_init_core()-->
