@@ -26,6 +26,9 @@ global starte routine that is executed after kernel loading to start various sub
 routine used in start_kernel(). Contains architecture specific code that is responsible for boot-time initializations.
 Related to memory management is that it initialize the boot allocator.
 
+## setup_bootmem_allocator
+arch specific routine to setup bootmem allocator, no longer used by x86 though. In x86, it only does printing.
+
 ## setup_pageset
 used inside build_all_zonelists() to set up the boot pageset.
 ```c

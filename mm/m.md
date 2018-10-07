@@ -24,6 +24,9 @@ defines maximum number of zones per node
 ## MAX_ZONES_PER_ZONELIST
 MAX_NUMNODES * MAX_NR_ZONES
 
+## memblock_add
+
+
 ## mem_init
 routine used in start_kernel(), architecture-specific. It disables the bootmem allocator and perform the transition to the actual memory management functions.
 
@@ -36,3 +39,4 @@ mem_map is an global array holding all page frames `struct page`
 
 ## mm_init
 routine used in start_kernel(). Setup kernel memory allocators.
+It will call mem_init() which is architecture specific. In x86-32, it will call free_all_bootmem(() and x86_init.hyper.init_after_bootmem().

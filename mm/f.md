@@ -26,3 +26,12 @@ kernel virtual address space entries associated a fixed but freely selectable pa
 
 The advantage of fixmap addresses is that at compilation time, the address acts like a constant whose physical address is assigned when the kernel is booted. The kernel also ensures that the page table entries of fixmaps are not flushed from the TLB during a context switch so that acess is always made via fast cache memory.
 
+## free_all_bootmem 
+diable the bootmem allocator and make the buddy system allocator assume responsibility of memory management. It relies on the function of __free_page. Th enable the pages to be incorporated in the data structures of the buddy system, where they are managed as free pages and are available for allocation. The memory for bitmap in bootmem is also then freed.
+
+
+## free_bootmem(unsigned long addr, unsigned long size)
+Only whole pages can be freed because the bootmem allocator does not keep any information about page divisions. Delegate the work to __free_bootmem_core, which calculates the pages whose contents are fully held in the area to be freed. So the if one page is freed only partly once and it will not be freed when the remaining part is freed later. This is normally not a big problem because free_bootmem is very rarely used. Most memory areas allocated during system initialization are intended for basic data structures that are needed throughout kernel run time and are therefor never relinquished.
+
+## free_initmem
+responsible for freeing the memory area defined for initialization purposes and returning the pages to the buddy system. 
