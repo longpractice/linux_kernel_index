@@ -29,6 +29,19 @@ The advantage of fixmap addresses is that at compilation time, the address acts 
 ## free_all_bootmem 
 diable the bootmem allocator and make the buddy system allocator assume responsibility of memory management. It relies on the function of __free_page. Th enable the pages to be incorporated in the data structures of the buddy system, where they are managed as free pages and are available for allocation. The memory for bitmap in bootmem is also then freed.
 
+## free_area
+```c
+struct free_area {
+	struct list_head	free_list[MIGRATE_TYPES];
+	unsigned long		nr_free;
+};
+```
+contained in each zone, donotes the free memory of the buddy system of a certain order
+nr_free donates the number of 2^order pages.
+
+free_list is the used to link the segments of memories. Only the first page of the memory area is linked.
+
+
 
 ## free_bootmem(unsigned long addr, unsigned long size)
 Only whole pages can be freed because the bootmem allocator does not keep any information about page divisions. Delegate the work to __free_bootmem_core, which calculates the pages whose contents are fully held in the area to be freed. So the if one page is freed only partly once and it will not be freed when the remaining part is freed later. This is normally not a big problem because free_bootmem is very rarely used. Most memory areas allocated during system initialization are intended for basic data structures that are needed throughout kernel run time and are therefor never relinquished.

@@ -21,6 +21,20 @@ defines maximum number of nodes
 ## MAX_NR_ZONES
 defines maximum number of zones per node
 
+## MAX_ORDER
+defines the maximum number of orders. The order could be from 0 to `MAX_ORDER-1`
+
+it normally 11 but can be overwriten by CONFIG_FORCE_MAX_ZONEORDER.
+
+the order 
+```c
+#ifndef CONFIG_FORCE_MAX_ZONEORDER
+#define MAX_ORDER 11
+#else
+#define MAX_ORDER CONFIG_FORCE_MAX_ZONEORDER
+#endif
+```
+
 ## MAX_ZONES_PER_ZONELIST
 MAX_NUMNODES * MAX_NR_ZONES
 
@@ -40,3 +54,4 @@ mem_map is an global array holding all page frames `struct page`
 ## mm_init
 routine used in start_kernel(). Setup kernel memory allocators.
 It will call mem_init() which is architecture specific. In x86-32, it will call free_all_bootmem(() and x86_init.hyper.init_after_bootmem().
+

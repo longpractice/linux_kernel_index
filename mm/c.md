@@ -4,6 +4,9 @@
 
 the variable representing the single global node for UMA systems. It is of type `struct pglist_data` which is the type of a node
 
+## CONFIG_FORCE_MAX_ZONEORDER
+a configuration parameter, when defined, overwrites the MAX_ORDER
+
 ## CONFIG_HAVE_MEMBLOCK_NODE_MAP
 
 ```c
