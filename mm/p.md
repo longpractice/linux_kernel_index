@@ -6,6 +6,46 @@ macro used by the kernel to convert linear-shifted-mapped virtual address to phy
 ## PAGE_ALIGN 
 a standard macro that must be defined by each architecture(typically in page.h). It expects an address as parameter and "rounds" the address so that it is exactly at the start of the next page.
 
+
+## pageblock_bits
+for a block of pages(that is, pageblock_nr_pages pages) in the freelist, some bits are used to set the migration-type or whether-skipping, the enum here are the indices of the bits.
+
+
+```c
+/* Bit indices that affect a whole block of pages */
+enum pageblock_bits {
+	PB_migrate,
+	PB_migrate_end = PB_migrate + 3 - 1,
+			/* 3 bits required for migrate types */
+	PB_migrate_skip,/* If set the block is skipped by compaction */
+
+	/*
+	 * Assume the bits will always align on a word. If this assumption
+	 * changes then get/set pageblock needs updating.
+	 */
+	NR_PAGEBLOCK_BITS
+};
+```
+
+## pageblock_flags
+field in `struct zone`, it is an array of unsigned long. It has enough space to hold bit property of all page blocks. Each block needs NR_PAGEBLOCKBITS bits which is 4 bits. So one element of pageblock_flags in 64 bit machine could hold flags for 16 page blocks. 
+## pfn_to_bitidx
+```c
+static inline int pfn_to_bitidx(struct page *page, unsigned long pfn)
+{
+#ifdef CONFIG_SPARSEMEM
+	pfn &= (PAGES_PER_SECTION-1);
+	return (pfn >> pageblock_order) * NR_PAGEBLOCK_BITS;
+#else
+	pfn = pfn - round_down(page_zone(page)->zone_start_pfn, pageblock_nr_pages);
+	return (pfn >> pageblock_order) * NR_PAGEBLOCK_BITS;
+#endif /* CONFIG_SPARSEMEM */
+}
+```
+given a page, get the bit index of page block flags in the zone::pageblock_flags array. The logic is clear. It first get the page frame number relative to the start of the first page of the zone. Then it gets the page block number it belongs to. Since each page block occupy `NR_PAGEBLOCK_BITS`, `(pfn >> pageblock_order) * NR_PAGEBLOCK_BITS` donates the start bit index in zone::pageblock_flags(an array of unsigned longs).
+
+
+
 ## PAGE_OFFSET
 the virtual address at which the kernel portion starts, since the physical memory is mapped to the virtual memory space of the kernel. For a limited range, the physical memory plus PAGE_OFFSET gives you the virtual memory of the memory for the kernel. 
 In x86-32, normally in 3:1 user-space/kernel-space division for 4GB virtual mem space, it is 0xC0000000. You could set it differently, say 0x80000000 when it requires a large amount of memory for the kernel but little for the user processes, for example, network routers.
@@ -29,6 +69,10 @@ a flag in superfluous bit in PTE entry. It indicates whether the page is "dirty"
 
 ## _PAGE_GLOBAL
 a flag in superfluous bit in PTE entry for x86. The TLB entries of pages with a set _PAGE_GLOBAL bit are not flushed from the TLBs during context switches. If possible, kernel pages are provided with this page. Since the kernel is always present at the same location in the virtual address space, this enhances system performce, a welcome effect as kernel data must be made available as quickly as possible.
+
+## page_group_by_mobility_disabled
+the freelist of a zone for buddy system is normally seperated in different mobility to relieve fragmentation problem.
+However, if the total memory is too small, smaller than HUGETLB_PAGE_ORDER or MAX_ORDER-1, `build_all_zonelists` will disable `page_group_by_mobility`.
 
 ## _PAGE_PRESENT
 a flag in superfluous bit in PTE entry that specifies whether the virtual page is present in RAM memory. This need not necessary be the case because pages may be swapped out into a swap area.

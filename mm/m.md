@@ -44,6 +44,29 @@ MAX_NUMNODES * MAX_NR_ZONES
 ## mem_init
 routine used in start_kernel(), architecture-specific. It disables the bootmem allocator and perform the transition to the actual memory management functions.
 
+## migratetype
+
+a enum to donate the type of free area according to mobility. The free list is divided according to mobility so that fragmentation problem is releaved. 
+
+enum migratetype {
+	MIGRATE_UNMOVABLE,
+	MIGRATE_MOVABLE,
+	MIGRATE_RECLAIMABLE,
+	MIGRATE_PCPTYPES,	/* the number of types on the pcp lists */
+	MIGRATE_HIGHATOMIC = MIGRATE_PCPTYPES,
+#ifdef CONFIG_CMA
+	MIGRATE_CMA,
+#endif
+#ifdef CONFIG_MEMORY_ISOLATION
+	MIGRATE_ISOLATE,	/* can't allocate from here */
+#endif
+	MIGRATE_TYPES
+};
+
+
+note MIGRATE_ISOLATE is a special virtual zone that is required to move physical pages across NUMA nodes. On large systems, it can be beneficial to bring physical pages closer to the CPUs that use them most. 
+
+
 ## mk_pte
 Must be implemented by all architectures.
 creates a pte entry; a page instance and the desired page access permissions must be passed as parameters
