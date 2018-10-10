@@ -9,6 +9,9 @@ struct zonelist {
 
 One allocation request operates on a zonelist. A zonelist is a list of zones, the first one is the 'goal' of the allocation, the other zones are fallback zones, in decreasing priority.
 
+## ZONE_MOVABLE
+a virtual zone used for marking range of memory that is movable.
+
 ## zone_pcp_init
 set up the zone pageset with the boot pageset.
 

@@ -38,6 +38,9 @@ the order
 ## MAX_ZONES_PER_ZONELIST
 MAX_NUMNODES * MAX_NR_ZONES
 
+## max_zone_pfn
+an array showing maximum pfn for each zone, it is used by free_area_init_nodes to set up data structure for each node and zone.
+
 ## memblock_add
 
 
@@ -77,4 +80,7 @@ mem_map is an global array holding all page frames `struct page`
 ## mm_init
 routine used in start_kernel(). Setup kernel memory allocators.
 It will call mem_init() which is architecture specific. In x86-32, it will call free_all_bootmem(() and x86_init.hyper.init_after_bootmem().
+
+## movable_zone
+a global variable showing the physical zone from which pages for the virtual ZONE_MOVABLE are taken is stored in the global variable movable_zone.
 

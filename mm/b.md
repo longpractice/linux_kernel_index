@@ -47,7 +47,7 @@ typedef struct bootmem_data {
 
 
 ## bootmem_node_data
-a global array holding all the `bootmem_data_t` for all the nodes. For UMA, there is only one element in this array, and is assigned to contig_page_data.bdata
+a global array holding all the `bootmem_data_t` for all the nodes. For UMA, there is only one element in this array, and is assigned to contig_page_data.bdata.
 
 
 

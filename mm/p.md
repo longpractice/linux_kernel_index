@@ -29,6 +29,7 @@ enum pageblock_bits {
 
 ## pageblock_flags
 field in `struct zone`, it is an array of unsigned long. It has enough space to hold bit property of all page blocks. Each block needs NR_PAGEBLOCKBITS bits which is 4 bits. So one element of pageblock_flags in 64 bit machine could hold flags for 16 page blocks. 
+
 ## pfn_to_bitidx
 ```c
 static inline int pfn_to_bitidx(struct page *page, unsigned long pfn)

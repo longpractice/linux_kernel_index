@@ -60,7 +60,13 @@ nr_free donates the number of 2^order pages.
 
 free_list is the used to link the segments of memories. Only the first page of the memory area is linked.
 
+## free_area_init_nodes
 
+void __init free_area_init_nodes(unsigned long *max_zone_pfn)
+
+init all pg_data_t and zone data. @max_zone_pfn: an array of max PFNs for each zone
+
+This will call free_area_init_node() for each active node in the system. Using the page ranges provided by memblock_set_node(), the size of each zone in each node and their holes is calculated. If the maximum PFN between two adjacent zones match, it is assumed that the zone is empty. For example, if arch_max_dma_pfn == arch_max_dma32_pfn, it is assumed that arch_max_dma32_pfn has no pages. It is also assumed that a zone starts where the previous one ended. For example, ZONE_DMA32 starts at arch_max_dma_pfn.
 
 ## free_bootmem(unsigned long addr, unsigned long size)
 Only whole pages can be freed because the bootmem allocator does not keep any information about page divisions. Delegate the work to __free_bootmem_core, which calculates the pages whose contents are fully held in the area to be freed. So the if one page is freed only partly once and it will not be freed when the remaining part is freed later. This is normally not a big problem because free_bootmem is very rarely used. Most memory areas allocated during system initialization are intended for basic data structures that are needed throughout kernel run time and are therefor never relinquished.
