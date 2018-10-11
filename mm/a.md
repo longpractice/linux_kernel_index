@@ -42,6 +42,18 @@ calls __alloc_bootmem_nopanic which calls ___alloc_bootmem_nopanic.
 ## _ _ _alloc_bootmem_nopanic
 calls alloc_bootmem_core on a specific goal, if it fails the, set goal to zero and then tries all the nodes.
 
+## ALLOC_NO_WATERMARKS
+allocation flag for buddy system, if this flag is set, the allocation does not check the watermark at all
+
+## ALLOC_WMARK_MIN
+allocation flag for buddy system, if this flag is set, only allocate page if the zone still contains at least zone->pages_min pages.
+
+## ALLOC_WMARK_HIGH
+default allocation flag for buddy system, if this flag is set, only allocate page if the zone still contains at least zone->pages_high pages.
+
+## ALLOC_WMARK_LOW
+allocation flag for buddy system, if this flag is set, only allocate page if the zone still contains at least zone->pages_low pages.
+
 ## ARCH_POPULATES_NODE_MAP
 removed in latest kernel 
 it is replaced by HAVE_MEMBLOCK_NODE_MAP.

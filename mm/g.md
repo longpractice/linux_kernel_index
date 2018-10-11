@@ -1,5 +1,14 @@
 # g
 
+## get_page_from_freelist
+
+```c
+static struct page *
+get_page_from_freelist(gfp_t gfp_mask, unsigned int order, int alloc_flags, const struct alloc_context *ac)
+```
+
+function used by the buddy system. It refers to the flags set and the allocation order to decide whether allocation can be made; if so, it initiates actual page allocation.
+
 ## __GFP_COLD
 buddy allocation mask bit. Specifies that allocation of a "cold" page that is not resident in the CPU cache is required.
 
