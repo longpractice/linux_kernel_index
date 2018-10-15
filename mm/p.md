@@ -30,6 +30,11 @@ enum pageblock_bits {
 ## pageblock_flags
 field in `struct zone`, it is an array of unsigned long. It has enough space to hold bit property of all page blocks. Each block needs NR_PAGEBLOCKBITS bits which is 4 bits. So one element of pageblock_flags in 64 bit machine could hold flags for 16 page blocks. 
 
+## PF_MEMALLOC
+Per process flag, this flag is used within the kernel to indicate that a thread is currently executing a memory allocation. Therefore it is allowed to recursively allocate any memory it requires ignoring watermarks and without being forced write out dirty pages.
+
+This is to ensure that, if the code, who is attempting to free pages to satisfy an original allocation request, has to allocate a small amount of memory to proceed, that code won't then recursively try to free pages.
+
 ## pfn_to_bitidx
 ```c
 static inline int pfn_to_bitidx(struct page *page, unsigned long pfn)
@@ -74,6 +79,8 @@ a flag in superfluous bit in PTE entry for x86. The TLB entries of pages with a 
 ## page_group_by_mobility_disabled
 the freelist of a zone for buddy system is normally seperated in different mobility to relieve fragmentation problem.
 However, if the total memory is too small, smaller than HUGETLB_PAGE_ORDER or MAX_ORDER-1, `build_all_zonelists` will disable `page_group_by_mobility`.
+
+
 
 ## _PAGE_PRESENT
 a flag in superfluous bit in PTE entry that specifies whether the virtual page is present in RAM memory. This need not necessary be the case because pages may be swapped out into a swap area.
@@ -163,8 +170,50 @@ typedef of struct pglist_data
 ## pglist_data
 
 a struct type holding memory statistics and page replacement data of a zone.
-struct pglist_data is typedef-ed as pg_data_t
+struct pglist_data is typedef-ed as pg_data_t. It is called a pglist since it holds a pointer to an array of all struct page's with in all the zones of the node. That is the member of pglist_data->node_mem_map.
 
+```c
+typedef struct pglist_data {
+	struct zone node_zones[MAX_NR_ZONES];
+	struct zonelist node_zonelists[MAX_ZONELISTS];
+	int nr_zones;
+	struct page *node_mem_map;
+	struct bootmem_data *bdata;
+
+	unsigned long node_start_pfn;
+	unsigned long node_present_pages; /* total number of physical pages */
+	unsigned long node_spanned_pages; /* total size of physical page range, including holes */
+	int node_id;
+	wait_queue_head_t kswapd_wait;
+	wait_queue_head_t pfmemalloc_wait;
+	struct task_struct *kswapd;	/* Protected by
+					   mem_hotplug_begin/end() */
+	int kswapd_order;
+	enum zone_type kswapd_classzone_idx;
+
+	int kswapd_failures;		/* Number of 'reclaimed == 0' runs */
+	/*
+	 * This is a per-node reserve of pages that are not available
+	 * to userspace allocations.
+	 */
+	unsigned long		totalreserve_pages;
+
+	/* Write-intensive fields used by page reclaim */
+	ZONE_PADDING(_pad1_)
+	spinlock_t		lru_lock;
+
+	/* Fields commonly accessed by the page reclaim scanner */
+	struct lruvec		lruvec;
+	unsigned long		flags;
+	ZONE_PADDING(_pad2_)
+
+	/* Per-node vmstats */
+	struct per_cpu_nodestat __percpu *per_cpu_nodestats;
+	atomic_long_t		vm_stat[NR_VM_NODE_STAT_ITEMS];
+} pg_data_t;
+```
+node_zones is an array that holds the data structures of the zones in the node.
+node_zonelists specifies alternative nodes and their zones in the order in which they are used for memory allocation if no more space is available in the current zone.
 ## __pgd
 convert an unsigned long to pgd_t
 
@@ -210,6 +259,12 @@ convert a variable of type pmd_t to an unsigned long number
 
 ## __pmd
 convert an unsigned long to pmd_t
+
+## prep_new_page
+prep_new_page has to prepare the pages for life in the kernel (note that the function returns a positive value if something is wrong with the selected pages; in this case, the allocation is restarted from the beginning).
+
+prep_new_page performs several checks on the pages to ensure that they leave the allocator in a perfect state -- this means, in particular, that the page must not be in use in existing mappings and no incorrect flags like PG_locked or PG_buddy may be set because this would imply that the page is in use somewhere else and should not be on the free list. Normally, however, no error should occur because this would imply a kernel error elsewhere. The function also sets the following default flags used for each new page. 
+
 
 ## pte_alloc 
 Must be implemented by all architectures.

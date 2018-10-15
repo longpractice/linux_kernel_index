@@ -74,6 +74,9 @@ The virtual address of the lower half is [0x0, 0x0000 7fff ffff ffff], while the
 
 The lower half is used for user space. The higher space is used for kernel space.
 
+## steal_suitable_fallback
+This function implements actual steal behavior. If order is large enough, we can steal whole pageblock. If not, we first move freepages in this pageblock to our migratetype and determine how many already-allocated pages are there in the pageblock with a compatible migratetype. If at least half of the pages are free or compatible, we can change migratetype of the pageblock itself, so pages freed in the future will be put in the correct free list.
+
 ## __START_KERNEL_MAP
 in x86-64, the kernel text is mapped into the region starting from __START_KERNEL, which is __START_KERNEL_MAP plus a compile-time configurable offset given by CONFIG_PHYSICAL_START. 
 

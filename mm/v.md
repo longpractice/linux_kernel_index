@@ -39,3 +39,9 @@ in x86, the start of the virtual address of VMALLOC area.
 In x86-32 it is defined as ` high_memory + VMALLOC_OFFSET `
 
 in x86-64, it is defined as 0xffff c200 0000 0000
+
+## vm_struct
+```c
+
+```
+When it manages the vmalloc area in virtual memory, the kernel must keep track of which sections are in use and which are free. To this end, it defines a data structure to hold all used sections in a linked list.

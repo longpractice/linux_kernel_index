@@ -12,6 +12,16 @@ function used by the buddy system. It refers to the flags set and the allocation
 ## __GFP_COLD
 buddy allocation mask bit. Specifies that allocation of a "cold" page that is not resident in the CPU cache is required.
 
+## __GFP_COMP 
+buddy allocation mask bit. If __GFP_COMP is set and more than one page has been requested, the kernel must group the pages into compand pages. The first page is called the head page, while all other pages are called tail pages. 
+
+All pages are identified as compound pages by the PG_compound bit. The private elements of the page instance of all pages - even the head page itself - point to the head page. Besides, the kernel needs to store information on how many pages compose the compound page. The LRU list element of the first tail page is abused for this purpose: A pointer to a destructor function is thus kept in lru.next, while the allocation order is stored in lru.prev. Notice that the lru element cannot be used for this purpose because it is required if the compound page is to be kept on a kernel list. 
+
+
+
+Why is this information required? The kernel can combine multiple adjacent physical pages to a so-called huge-TLB page. When a userland application works with large chunks of data, many processors allow using huge-TLB pages to keep the data in memory. Since the page size of a huge-TLB page is larger than the regular page size, this reduces the amount of information that must be stored in the translation lookaside buffer (TLB), that, in turn, reduces the probability of a TLB cache miss -- and thus speeds things up. However, huge-TLB pages need to be freed differently than compound pages composed of multiple regular pages, so an explicit destructor is required. free_compound_pages is used for this purpose. The function essentially determines the page order stored in lru.prev and frees the pages one after another when the compound page is freed.
+
+
 ## __GFP_DMA
 buddy allocation mask bit, meaning to get free pages from DMA.
 

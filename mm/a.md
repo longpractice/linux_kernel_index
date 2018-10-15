@@ -36,11 +36,24 @@ reserve the memory in bootmem allocator in ZONE_DMA, data is aligned at the star
 
 calls `__alloc_bootmem` with alignment of `PAGE_SIZE` and goal of 0.
 
-## _ _alloc_bootmem
+## __alloc_bootmem
 calls __alloc_bootmem_nopanic which calls ___alloc_bootmem_nopanic.
 
-## _ _ _alloc_bootmem_nopanic
+## ___alloc_bootmem_nopanic
 calls alloc_bootmem_core on a specific goal, if it fails the, set goal to zero and then tries all the nodes.
+
+## __alloc_pages_nodemask
+
+allocate pages for buddy zoned buddy allocator. This is the 'heart' of the zoned buddy allocator.
+
+It first tries to call the get_page_from_freelist. If not succeeded, it will go into a slower method, __alloc_pages_slowpath, which contains much more details.
+
+## __alloc_pages_slowpath
+If the first attemp of memory allocation of get_page_from_freelist in __alloc_pages_nodemask fails, we will start to go into this routine. The blow are the goto marks discussed seperately.
+
+retry_cpuset
+
+
 
 ## ALLOC_NO_WATERMARKS
 allocation flag for buddy system, if this flag is set, the allocation does not check the watermark at all

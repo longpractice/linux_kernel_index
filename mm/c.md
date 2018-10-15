@@ -1,6 +1,14 @@
 # C
 
+## can_steal_fallback
+```c
+can_steal_fallback(unsigned int order, int start_mt)
+```
+when we are falling back to another migratetype during allocation, try to steal extra free pages from the same pageblocks to satisfy further allocations, instead of polluting multiple pageblocks.
+
+If we are stealing a relatively large buddy order, it is likely that there will be more free pages in the pageblock, so try to steal them all. For reclaimable and unmovable allocations, we steal regardless of page size, as fragmentation caused by those allocations polluting movable pageblocks is worse than movable allocations stealing from unmovable and reclaimable pageblocks.
 ## contig_page_data
+
 
 the variable representing the single global node for UMA systems. It is of type `struct pglist_data` which is the type of a node
 
@@ -18,3 +26,6 @@ a configuration parameter, when defined, overwrites the MAX_ORDER
   * free_area_init_node()
   */
   ```
+
+## cond_schedule()
+this is used for a process to trigger reschedule if the condition is safe for it. This gives a chance for other process to run. 

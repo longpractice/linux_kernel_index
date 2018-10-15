@@ -24,6 +24,9 @@ static int fallbacks[MIGRATE_TYPES][4] = {
 ## __flush_tlb_all()
 flush the tlb entries. In contrast to TLB flushes during context swtiches, pages with a _PAGE_GLOBAL bit are also flushed.
 
+## find_suitable_fallback
+check whether there is a suitable fallback freepage with requested order. If only_stealable is true, this function fallback_mt only if we can steal other freepages all together. This would help to reduce fragmentation due to mixed migratetype pages in one pageblock.
+
 ## __FIXADDR_TOP
 end of fixed kernel mapping virtual address
 
@@ -73,3 +76,19 @@ Only whole pages can be freed because the bootmem allocator does not keep any in
 
 ## free_initmem
 responsible for freeing the memory area defined for initialization purposes and returning the pages to the buddy system. 
+
+## __free_one_page
+the cornerstone of memory freeing. The relevant area is added to the appropriate free_area list of the buddy system. When buddy pairs are freed, the function coalesces them into a contiguous area that is then placed in the next higher free_area list. If this reunites a further buddy pair, it is also coalesced and moved to a higher list. This procedure is repeated until all possible buddy pairs have been coalesced and the changes have been propagated upwards as far as possible.
+
+
+## __free_pages
+
+the base function to implement all buddy kernel freeing API.
+__free_pages first establishes whether a single page or a larger contiguous block is to be freed. If a single page is freed, it is not returned to the buddy system but is placed in the per-CPU cache -- in the warm list for all pages that are highly likely to reside in the CPU cache. For this purpose, the kernel provides the free_unref_page helper function.
+
+## free_unref_page
+
+kernel buddy system to free a 0-order page.
+
+
+
