@@ -119,6 +119,40 @@ in x86-32, called by paging_init()
 ## parse_early_param()
 routine used in setup_arch() in start_kernel(). It concentrates on arguments like mem=XXX, highmen=XXX, or memmap=XXX arguments. The administrator can overwrite the size of available memory or manualy define memory areas if the kernel calculates an incorrect value or is proved with a wrong value by the BIOS. This option is only of relevance on older computers. highmem= permits overwriting of the highmen size value detected. It can be used on machines with a very large RAM configuration to limit available RAM size - as it sometimes yields performance gains.
 
+
+
+## per_cpu_pages
+contained by per_cpu_pageset which forms an array in struct zone.
+
+```c
+struct per_cpu_pages {
+	int count;		/* number of pages in the list */
+	int high;		/* high watermark, emptying needed */
+	int batch;		/* chunk size for buddy add/remove */
+
+	/* Lists of pages, one per migrate type stored on the pcp-lists */
+	struct list_head lists[MIGRATE_PCPTYPES];
+};
+```
+
+note that MIGRATE_PCPTYPES just marks the number of types on the pcp lists.
+So it contains MIGRATE_UNMOVABLE, MIGRATE_MOVABLE and MIGRATE_RECLAIMABLE.
+
+## per_cpu_pageset
+hold the hot pages for one cpu. there used to be two element for hot-n-cold pages. 
+
+But this is no longer true.
+https://lwn.net/Articles/173215/
+
+Having a hot and a cold pcp list means that:
+
+- cold pages are overlooked when a hot page is needed but none available.
+- when the hot list spills, it doesn't fill the cold list if it is low.
+
+Use a single pcp list to solve both these problems. Disallow cold page
+allocation from taking hot pages though.
+
+
 ## persistent mapping 
 
 
@@ -212,8 +246,38 @@ typedef struct pglist_data {
 	atomic_long_t		vm_stat[NR_VM_NODE_STAT_ITEMS];
 } pg_data_t;
 ```
-node_zones is an array that holds the data structures of the zones in the node.
-node_zonelists specifies alternative nodes and their zones in the order in which they are used for memory allocation if no more space is available in the current zone.
+`node_zones` is an array that holds the data structures of the zones in the node.
+
+
+`node_zonelists` specifies alternative nodes and their zones in the order in which they are used for memory allocation if no more space is available in the current zone. For UMA, there is only one fallback list, and for NUMA, there are two fallback list(one for falling back across all the nodes), one for falling back within the current node.
+
+
+`nr_zones` hold the number of zones.
+
+`node_mem_map` is a pointer to an array of page instances used to describe all physical pages of the node. It includes the pages of all zones in the node.
+
+During system boot, the kernel needs memory even before memory management has been initialized (memory must also be reserved to initialize memory management). To resolve this problem, the kernel uses the boot memory allocator described by bootmem_data.
+
+`node_start_pfn` is the logical number of the first page frame of the NUMA node. The page frames of all nodes in the system are numbered consecutively, and each frame is given a number that is globally unique(not just unique to the node).
+
+node_start_pfn is always 0 in a UMA system because there is only one node whose first page frame is therefore 0.
+
+`node_present_pages` is the total number of physical pages. Note that this may not be the total number of pages that the node spans since there might be holes. When taking holes into account, see node_spanned_pages.
+
+`node_spanned_pages` is total number of page spanned by the node, this takes the holes (if any) into account and must be no smaller than `node_present_pages`.
+
+`node_id` is a global node identifier. All the nodes in the kernel are numbered consecutively starting from zero.
+
+`kswapd_wait` wait queue of kswapd kernel thread
+
+`kswapd` pointer to task structure of kswapd kernel thread
+
+`kswapd_order` ??
+
+`totalreserve_pages` this is a per-node reserve of pages that are not available to userspace allocations.
+
+
+
 ## __pgd
 convert an unsigned long to pgd_t
 
