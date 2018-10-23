@@ -30,7 +30,7 @@ Related to memory management is that it initialize the boot allocator.
 arch specific routine to setup bootmem allocator, no longer used by x86 though. In x86, it only does printing.
 
 ## setup_pageset
-used inside build_all_zonelists() to set up the boot pageset.
+used inside build_all_zonelists() to init the boot pageset(set up the high value, set count=0, etc...).
 ```c
 static void setup_pageset(struct per_cpu_pageset *p, unsigned long batch)
 {
