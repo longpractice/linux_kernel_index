@@ -135,6 +135,17 @@ The purpose for this is that a lower zone short of memory sometimes is much more
 pointer to an array(one element each cpu) of per-CPU hot page lists(there used to be cold pages, but no longer in newer kernels).
 `per_cpu_pageset` holds one `per_cpu_pages`.
 
+it is setup by setup_zone_pageset in page_alloc.
+
+---
+` unsigned long	*pageblock_flags `
+
+each memory zone provides a special field that allows for tracking properties of page blocks with page_block_nr_pages pages, the bits are tightly packed into the unsigned longs, see `pageblock_flags` for details. 
+
+Setting and getting the `pageblock_flags` are done with get_pfnblock_flags_mask and set_pfn_flags_mask in pageblock-flags.h.
+
+Actually the flags are stored starting from the higher bits inside one unsigned long.
+
 
 
 
@@ -168,8 +179,7 @@ enum {
 
 To speed the reading of the zonelist, the zonerefs contain the zone index of the entry being read. Helper functions to access information given a struct zoneref are
 
-`zonelist_zone()` - Return the struct zone* for an entry in a zoneref
-
+`zonelist_zone()` - Return the struct zone* for an entry in a zoneref.
 
 ## ZONE_DMA
 

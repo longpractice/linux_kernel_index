@@ -10,7 +10,6 @@ a standard macro that must be defined by each architecture(typically in page.h).
 ## pageblock_bits
 for a block of pages(that is, pageblock_nr_pages pages) in the freelist, some bits are used to set the migration-type or whether-skipping, the enum here are the indices of the bits.
 
-
 ```c
 /* Bit indices that affect a whole block of pages */
 enum pageblock_bits {
@@ -29,6 +28,18 @@ enum pageblock_bits {
 
 ## pageblock_flags
 field in `struct zone`, it is an array of unsigned long. It has enough space to hold bit property of all page blocks. Each block needs NR_PAGEBLOCKBITS bits which is 4 bits. So one element of pageblock_flags in 64 bit machine could hold flags for 16 page blocks. 
+
+## page_zone
+from a page instance, get a zone that the page is in.
+Note that the node number as well as the zone number information are stored inside
+the page->flags field. This calculation is done using these information.
+
+```c
+static inline struct zone *page_zone(const struct page *page)
+{
+	return &NODE_DATA(page_to_nid(page))->node_zones[page_zonenum(page)];
+}
+```
 
 ## PF_MEMALLOC
 Per process flag, this flag is used within the kernel to indicate that a thread is currently executing a memory allocation. Therefore it is allowed to recursively allocate any memory it requires ignoring watermarks and without being forced write out dirty pages.
@@ -151,6 +162,25 @@ Having a hot and a cold pcp list means that:
 
 Use a single pcp list to solve both these problems. Disallow cold page
 allocation from taking hot pages though.
+
+```c
+struct per_cpu_pages {
+	int count;		/* number of pages in the list */
+	int high;		/* high watermark, emptying needed */
+	int batch;		/* chunk size for buddy add/remove */
+
+	/* Lists of pages, one per migrate type stored on the pcp-lists */
+	struct list_head lists[MIGRATE_PCPTYPES];
+};
+```
+
+It is clear inside the code. If the value of count exceeds hight, this indicates that there are too many pages in the list. No explicit watermark for low fill states is used: When no elements are left, the list is refilled.
+
+lists is the doubly linked list that holds the per-CPU pages and is handled using standard methods of the kernel.
+
+If possible, the per-CPU caches are not filled with individual pages but with multipage chunk. batch is a guideline to the number of pages to be added in a single pass. 
+
+
 
 
 ## persistent mapping 

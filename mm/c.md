@@ -7,6 +7,7 @@ can_steal_fallback(unsigned int order, int start_mt)
 when we are falling back to another migratetype during allocation, try to steal extra free pages from the same pageblocks to satisfy further allocations, instead of polluting multiple pageblocks.
 
 If we are stealing a relatively large buddy order, it is likely that there will be more free pages in the pageblock, so try to steal them all. For reclaimable and unmovable allocations, we steal regardless of page size, as fragmentation caused by those allocations polluting movable pageblocks is worse than movable allocations stealing from unmovable and reclaimable pageblocks.
+
 ## contig_page_data
 
 
