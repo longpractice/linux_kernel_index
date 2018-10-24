@@ -3,6 +3,18 @@
 ## batch size
 batch size is the unit of filling in per cpu page set for a certain zone, it is normally one fourth of the 1000th of total number of pages contained by the zone
 
+## boot_e820_entry
+```c
+/*
+ * The E820 memory region entry of the boot protocol ABI:
+ */
+struct boot_e820_entry {
+	__u64 addr;
+	__u64 size;
+	__u32 type;
+} __attribute__((packed));
+```
+the type of e820 entry set up by boot memory allocator. It will be copied to e820_entry of e820_table.
 
 ## bootmem_data, bootmem_data_t
 per node information used by the bootmem allocator

@@ -1,5 +1,22 @@
 # e
 
+## e820_entry
+
+```c
+/*
+ * A single E820 map entry, describing a memory range of [addr...addr+size-1],
+ * of 'type' memory type:
+ *
+ * (We pack it because there can be thousands of them on large systems.)
+ */
+struct e820_entry {
+	u64			addr;
+	u64			size;
+	enum e820_type		type;
+} __attribute__((packed));
+
+```
+
 ## e820_table
 
 ```c
@@ -12,14 +29,69 @@ struct e820_table {
 };
 ```
 
+## e820_type
+```c
+/*
+ * These are the E820 types known to the kernel:
+ */
+enum e820_type {
+	E820_TYPE_RAM		= 1,
+	E820_TYPE_RESERVED	= 2,
+	E820_TYPE_ACPI		= 3,
+	E820_TYPE_NVS		= 4,
+	E820_TYPE_UNUSABLE	= 5,
+	E820_TYPE_PMEM		= 7,
+
+	/*
+	 * This is a non-standardized way to represent ADR or
+	 * NVDIMM regions that persist over a reboot.
+	 *
+	 * The kernel will ignore their special capabilities
+	 * unless the CONFIG_X86_PMEM_LEGACY=y option is set.
+	 *
+	 * ( Note that older platforms also used 6 for the same
+	 *   type of memory, but newer versions switched to 12 as
+	 *   6 was assigned differently. Some time they will learn... )
+	 */
+	E820_TYPE_PRAM		= 12,
+
+	/*
+	 * Reserved RAM used by the kernel itself if
+	 * CONFIG_INTEL_TXT=y is enabled, memory of this type
+	 * will be included in the S3 integrity calculation
+	 * and so should not include any memory that the BIOS
+	 * might alter over the S3 transition:
+	 */
+	E820_TYPE_RESERVED_KERN	= 128,
+};
+```
+
 ## e820__memory_setup(void)
-in x86 architecture, routine invoked inside setup_arch() which is inside start_kernel(). It creates a list with the memory regions occupied by the system and the free memory regions. It will call x86_init.resources.memory_setup(), which is e820__memory_setup_default() by default(see `x86_init` for details). It will also print out the memory information.
+in x86 architecture, routine invoked inside setup_arch() which is inside start_kernel(). It creates a list with the memory regions occupied by the system and the free memory regions. It will call x86_init.resources.memory_setup(), which is e820__memory_setup_default() by default(see `x86_init` for details). This function will copy boot_params.e820_table to `e820_table`. It then also copy `e820_table` to `e820_table_kexec` and `e820_table_firmware`. It will also print out the memory information.
 
 ## e820__memory_setup_default(void)
-int x86 architecture, the default function called by e820__memory_setup(). Pass the firmware (bootloader) E820 map to the kernel and process it. It pops the variable of e820_table.
+int x86 architecture, the default function called by e820__memory_setup(). It calls basically append_e820_table (pops the variable `e820_table`) and e820__update_table (sanitize the table `e820_table`).
+
+## e820__range_add
+```c
+void __init e820__range_add(u64 start, u64 size, enum e820_type type)
+{
+	__e820__range_add(e820_table, start, size, type);
+}
+```
+
+this function just add the range to the e820_table global variable.
+
 
 ## e820__register_active_regions
 in latest kernel, replaced by e820__memblock_setup()
+
+## e820__update_table
+```c
+int __init e820__update_table(struct e820_table *table)
+```
+sanitize the e820_table. 
+TODO: analyse this.
 
 ## _edata
 the end of data section of the kernel binary. The data section starts from _etext, the end of the text section. It is also the start of data section that is no longer used after kernel initialization.

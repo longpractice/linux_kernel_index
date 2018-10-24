@@ -24,7 +24,10 @@ global starte routine that is executed after kernel loading to start various sub
 
 ## setup_arch
 routine used in start_kernel(). Contains architecture specific code that is responsible for boot-time initializations.
-Related to memory management is that it initialize the boot allocator.
+Related to memory management are
+
+1. e820__memory_setup();
+2. 
 
 ## setup_bootmem_allocator
 arch specific routine to setup bootmem allocator, no longer used by x86 though. In x86, it only does printing.
