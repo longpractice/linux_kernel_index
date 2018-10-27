@@ -1,5 +1,50 @@
 # e
 
+## e820_add_kernel_range
+used inside x86 setup_arch(), add the kernel code and data range between `_text` and `_end` to E820_TYPE_RAM range, which includes kernel text, kernel data and initialization data.
+
+## e820_end_pfn
+Find the highest page frame number no larger than limit_pfn that is in a range of a certain type.
+```c
+/*
+ * Find the highest page frame number we have available
+ */
+static unsigned long __init e820_end_pfn(unsigned long limit_pfn, enum e820_type type)
+{
+	int i;
+	unsigned long last_pfn = 0;
+	unsigned long max_arch_pfn = MAX_ARCH_PFN;
+
+	for (i = 0; i < e820_table->nr_entries; i++) {
+		struct e820_entry *entry = &e820_table->entries[i];
+		unsigned long start_pfn;
+		unsigned long end_pfn;
+
+		if (entry->type != type)
+			continue;
+
+		start_pfn = entry->addr >> PAGE_SHIFT;
+		end_pfn = (entry->addr + entry->size) >> PAGE_SHIFT;
+
+		if (start_pfn >= limit_pfn)
+			continue;
+		if (end_pfn > limit_pfn) {
+			last_pfn = limit_pfn;
+			break;
+		}
+		if (end_pfn > last_pfn)
+			last_pfn = end_pfn;
+	}
+
+	if (last_pfn > max_arch_pfn)
+		last_pfn = max_arch_pfn;
+
+	pr_info("last_pfn = %#lx max_arch_pfn = %#lx\n",
+		last_pfn, max_arch_pfn);
+	return last_pfn;
+}
+```
+
 ## e820_entry
 
 ```c
@@ -16,6 +61,10 @@ struct e820_entry {
 } __attribute__((packed));
 
 ```
+
+## e820_memblock_setup
+setup memblocks according to e820_table. If the entry in the e820_table is not of type E820_TYPE_RAM or E820_TYPE_RESERVED_KERN, that entry will go into memblock type reserved. The holes between the entries will also go to the memblock reserved. Everything else will be treated as memblock type memory.
+
 
 ## e820_table
 

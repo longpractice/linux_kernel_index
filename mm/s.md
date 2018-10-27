@@ -27,7 +27,28 @@ routine used in start_kernel(). Contains architecture specific code that is resp
 Related to memory management are
 
 1. e820__memory_setup();
-2. 
+2. e820_add_kernel_range();
+3. trim_bios_range();
+4. as below, find the last pfn to max_pfn
+```c
+	/*
+	* partially used pages are not usable - thus
+	* we are rounding upwards:
+	*/
+	max_pfn = e820__end_of_ram_pfn();
+```
+
+5. as below 1UL << (32 - PAGE_SHIFT) shows the maximum pfn with 32 bit address space. This function clamp the max_pfn to what 32bit physical address space could donate. Note that we could not directly clamp max_pfn to 1UL << (32 - PAGE_SHIFT) in the if branch since it can have empty areas between e820__end_of_low_ram_pfn() and (1UL << (32 - PAGE_SHIFT)).
+```c
+   	/* How many end-of-memory variables you have, grandma! */
+	/* need this before calling reserve_initrd */
+	if (max_pfn > (1UL<<(32 - PAGE_SHIFT)))
+		max_low_pfn = e820__end_of_low_ram_pfn();
+	else
+		max_low_pfn = max_pfn;
+```
+6. high_memory = (void *)__va(max_pfn * PAGE_SIZE - 1) + 1; set the high_memory to be the virtual address corresponding to the max_pfn.
+7. e820__memblock_setup();
 
 ## setup_bootmem_allocator
 arch specific routine to setup bootmem allocator, no longer used by x86 though. In x86, it only does printing.
