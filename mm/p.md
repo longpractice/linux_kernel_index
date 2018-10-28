@@ -1,5 +1,13 @@
 # P
 
+## p4d
+Five-level page tables insert a new page table level P4D which is inserted between PGD and the PUD.
+
+https://lwn.net/Articles/717293/
+
+## p4d_index
+from a virtual address, get the index _inside_ a p4d directory
+
 ## __pa()
 macro used by the kernel to convert linear-shifted-mapped virtual address to phycical memory address
 
@@ -311,6 +319,22 @@ node_start_pfn is always 0 in a UMA system because there is only one node whose 
 ## __pgd
 convert an unsigned long to pgd_t
 
+## phys_p4d_init
+arch/x86/mm/init_64.c :
+```c
+static unsigned long __meminit
+phys_p4d_init(p4d_t *p4d_page, unsigned long paddr, unsigned long paddr_end,
+	      unsigned long page_size_mask)
+```
+
+init p4d directory starting from p4d_page to map physical address paddr. 
+
+If the 5 level page table is not enabled, p4d does not exists and the task is delegated to phys_pud_init with the same set of parameters.
+
+If the 5 level page table is enabled, it first calls phys_pud_init and then call p4d_populate to fill p4d with puds for each p4d. 
+
+
+
 ## PHYSICAL_ALIGN
 a kernel configuration to set the alignment requirement for loading the kernel onto
 
@@ -354,11 +378,17 @@ convert a variable of type pmd_t to an unsigned long number
 ## __pmd
 convert an unsigned long to pmd_t
 
+## POST
+n a PC, booting Linux begins in the BIOS at address 0xFFFF0. The first step of the BIOS is the power-on self test (POST). The job of the POST is to perform a check of the hardware. The second step of the BIOS is local device enumeration and initialization. Given the different uses of BIOS functions, the BIOS is made up of two parts: the POST code and runtime services. After the POST is complete, it is flushed from memory, but the BIOS runtime services remain and are available to the target operating system.
+
 ## prep_new_page
 prep_new_page has to prepare the pages for life in the kernel (note that the function returns a positive value if something is wrong with the selected pages; in this case, the allocation is restarted from the beginning).
 
 prep_new_page performs several checks on the pages to ensure that they leave the allocator in a perfect state -- this means, in particular, that the page must not be in use in existing mappings and no incorrect flags like PG_locked or PG_buddy may be set because this would imply that the page is in use somewhere else and should not be on the free list. Normally, however, no error should occur because this would imply a kernel error elsewhere. The function also sets the following default flags used for each new page. 
 
+## protected mode
+When in real mode, processors do not support virtual addressing, and Linux, which is designed and implemented for systems with protected mode, requires virtual addressing to enable process
+protection and isolation, a crucial abstraction provided by the kernel. This mandates the processor to be switched into protected mode and turn on virtual address support before the kernel kicks in and begins its boot operations and initialization of subsystems. Switching to protected mode requires the MMU chipset to be initialized, by setting up appropriate core data structures, in the process enabling paging. These operations are architecture specific and are implemented in arch branch of the kernel source tree. During kernel build, these sources are compiled and linked as a header to protected mode kernel image; this header is referred as the kernel bootstrap or real mode kernel.
 
 ## pte_alloc 
 Must be implemented by all architectures.

@@ -3,6 +3,14 @@
 ## batch size
 batch size is the unit of filling in per cpu page set for a certain zone, it is normally one fourth of the 1000th of total number of pages contained by the zone
 
+## BIOS runtime services
+n a PC, booting Linux begins in the BIOS at address 0xFFFF0. The first step of the BIOS is the power-on self test (POST). The job of the POST is to perform a check of the hardware. The
+second step of the BIOS is local device enumeration and initialization. Given the different uses of BIOS functions, the BIOS is made up of two parts: the POST code and runtime services. After the POST is complete, it is flushed from memory, but the BIOS runtime services remain and are available to the target operating system.
+
+To boot an operating system, the BIOS runtime searches for devices that are both active and bootable in the order of preference defined by the CMOS settings. A boot device can be a floppy disk, a CD-ROM, a partition on a hard disk, a device on the network, or a USB stick.
+
+Commonly, Linux is booted from a hard disk, where the Master Boot Record(MBR) contains the primary boot loader. The MBR is a 512-byte sector, located in the first sector on the disk. After the MBR is loaded into the RAM, the BIOS yields control to it.
+
 ## boot_e820_entry
 ```c
 /*
@@ -15,6 +23,29 @@ struct boot_e820_entry {
 } __attribute__((packed));
 ```
 the type of e820 entry set up by boot memory allocator. It will be copied to e820_entry of e820_table.
+
+## boot loader
+the next step of booting after the BIOS runtime services. There are two stages of it, the first, primary boot loader is used for loading the second stage boot loader.
+
+## boot loader(stage 1)
+The primary boot loader that resides in the MBR is a 512-byte image containing both program code and a small partition table. The first 446 bytes are the primary boot loader, which contains both executable code and error message text. The next sixty-four bytes are the partition table, which contains a record for each of four partitions (sixteen bytes each). The MBR ends with two bytes that are defined as the magic number (0xAA55). The magic number serves as the validation check of the MBR.
+```
+To see the contents of your MBR, use this command:
+dd if=/dev/hda of=mbr.bin bs=512 count=1
+od -xa mbr.bin
+The dd command, which needs to be run from root, reads the first 512 bytes from /dev/hda (the first Integrated Drive Electronics, or IDE drive) and writes them to the mbr.bin file.
+The od command prints the binary file in hex and ASCII formats.
+```
+The job of the primary boot loader is to find and load the secondary boot loader. It does this by looking through the partition table for an active partition. When it finds an active partition, it scans the remaining partitions in the table to ensure that they are all inactive. When this is verified, the active partition's boot record is read from the device into RAM and executed.
+
+
+## boot loader(stage 2)
+The secondary, or second-stage, boot loader could be more aptly called the kernel loader. The task at this stage is to load the Linuxe kernel and optional initial RAM disk.
+
+The first and second stage boot loaders combind are called Linuxe Loader(LILO) or GRand Unified Bootloader (GRUB) in the x86 PC environment. LILO has some disadvantages that were corrected in GRUB.
+
+The great thing about GRUB is that it includes knowledge of Linux file systems. Instead of using raw sectors on the disk, as LILO does, GRUB can load a Linux kernel from an ext2 or ext3 file system. It does this by making the two-stage boot loader into a three-stage boot loader. Stage 1(MBR) boots a stage 1.5 boot loader that understands the particular file system containing the Linux kernel image. Examples include reiserfs_stage1_5(to load from a Reiser journaling file system) or e2fs_stage1_5(to load from an ext2 or ext3 file system). When the stage 1.5 boot loader is loaded and running, the stage 2 boot loader can be loaded.
+
 
 ## bootmem_data, bootmem_data_t
 per node information used by the bootmem allocator
@@ -54,12 +85,15 @@ typedef struct bootmem_data {
 
 `hint_idx` the PFN of the page used with the last allocation; together with using this with the `last_end_offset` field, a test can be made to see if allocations can be merged with the page used for the last allocation rather than using up a full new page.
 
-`list` system with discontinuous memory can require more than one bootmem allocator. This is typically the case on NUMA machines that register one bootmem allocator per node, but it would, for instance, also be possible to register one bootmem allocator for reach continuous memory region on systems where the physical address space is interspersed with holes.
+`list` system with discontinuous memory can require more than one bootmem allocator. This is typically the case on NUMA machines that register one bootmem allocator per node, but it would, for instance, also be possible to register one bootmem allocator for reach continuous memory region on systems where the physical address space is interspersed with holes. In addition to having the ability to store and boot a Linux image, these boot monitors perform some level of system test and hardware initialization. In an embedded target, these boot monitors commonly cover both the first and second stage boot loader.
 
 
 
 ## bootmem_node_data
 a global array holding all the `bootmem_data_t` for all the nodes. For UMA, there is only one element in this array, and is assigned to contig_page_data.bdata.
+
+## boot monitor
+Normally on an embedded platform, a bootstrap environment is used when the system is powered on, or reset. Examples include U-Boot RedBoot, and MicroMonitor from Lucent. Embedded platforms are commonly shipped with a boot monitor. These programs reside in special region of flash memory on the target hardware and provide the means to download a Linux kernel image into flash memory and subsequently execute it. 
 
 ## build_all_zonelists
 used in start_kernel(), called after setup_arch() or used in memory hot plug.

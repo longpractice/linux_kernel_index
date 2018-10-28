@@ -62,8 +62,10 @@ Related to memory management are
 6. high_memory = (void *)__va(max_pfn * PAGE_SIZE - 1) + 1; set the high_memory to be the virtual address corresponding to the max_pfn.
 7. e820__memblock_setup();
 8. reserve_bios_regions();
-9. trim_platform_memory_ranges();
-10. trim_low_memory_range();
+9. reserve_real_mode();
+10. trim_platform_memory_ranges();
+11. trim_low_memory_range();
+12. init_mem_mapping();
 	
 ## setup_bootmem_allocator
 arch specific routine to setup bootmem allocator, no longer used by x86 though. In x86, it only does printing.

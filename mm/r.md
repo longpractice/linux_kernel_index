@@ -1,10 +1,26 @@
 ## r
 
+## real mode
+physical address mode in x86. When in real mode, processors do not support virtual addressing, and Linux, which is designed and implemented for systems with protected mode, requires virtual addressing to enable process protection and isolation, a crucial abstraction provided by the kernel.
+
+## real mode kernel
+With the kernel image in memory and control given from the stage 2 boot loader, the kernel stage begins. The kernel iamge isn't so much an executable kernel, but a compressed kernel image. Typically this is a zImage (compressed image, less than 512KB) or a bzImage(big compressed image, greater than 512KB), that has been previously compressed with zlib. At the head of the this kernel image is a routine that does some minimal amount of hardware setup and then decompresses the kernel contained within the kernel image and places it into memory. If an initial RAM disk image is present, this routine moves it into memory and notes it for later use. The routine then calls the kernel and the kernel boot begins. 
+
+When the bzImage is invoked, you begin at arch/x86/boot/header.S _start routine.
+It then jumps to start_of_setup label in header.S and then eventually jump to arch/x86/boot/main.c :: main(). main() in arch/x86/boot/main.c eventually calls go_to_protected_mode() to jump to protected mode.
+
+
 ## reserve_bios_regions
 reserve bios region which is guaranteed to start between BIOS_START_MIN and BIOS_START_MAX(128k and 640k) and end to 1mb. It also covers the range of EBDA(Extended BIOS Data Area).
 
 ## reserve_bootmem
 arch-irrelavant code to mark none-free pages in boot allocator, arch-specific code will call this code to mark according to its only need. No longer used by x86 though.
+
+## reserve_real_mode
+in x86, reserve memory in memblock_type reserved. It must be from memory under 1M. It is used for trampoline. 
+
+## reset vector
+In most architectures, on reset, processor is initialized in normal or physical address mode (also called real mode in x86) and begins executing the platform's firmware instructions found at the reset vector.
 
 ## required_kernelcore
 the administrator could specify this value for the non-movable memory. The non-movable memory is spread evenly across the different nodes. 
