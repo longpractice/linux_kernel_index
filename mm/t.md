@@ -31,3 +31,12 @@ static void __init trim_bios_range(void)
 ```
 
 The routine makes sure that the first physical page is classified as E820_TYPE_RESERVED and take 640-1Mb range out of E820 table.
+
+## trim_low_memory_range
+reserve memory in memblock as configured by CONFIG_X86_RESERVE_LOW
+
+## trim_platform_memory_ranges
+reserve memory that causes trouble in certain devices. It calls here trim_snb_memory().
+
+## trim_snb_memory
+reserve memory due to problem in Sandy Bridge graphics(Intel HD Graphics). Some bad pages are to be avoided only when snb_gfx_workaround_needed returns true. snb_gfx_workaround only returns true only under some conditions when CONFIG_PCI is set. 

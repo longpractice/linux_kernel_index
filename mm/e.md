@@ -1,5 +1,12 @@
 # e
 
+## EBDA
+Extended Bios Data Area.
+
+The EBDA is a variable-sized memory area (on different BIOSes). If it exists, it is always immediately below 0xA0000 in memory. It is absolutely guaranteed to be less than 128 KiB in size. It is often 1 KiB. The biggest ones ever actually seen are 8 KiB. You can determine the size of the EBDA by using BIOS function INT 12h, or (often) by examining the word at 0x40E in the BDA (see below). Both of those methods will tell you the location of the bottom of the EBDA.
+
+This region should be taken care of in reserve_bios_regions() in x86/kernel/ebda.c. This function is used in setup_arch() for x86.
+
 ## e820_add_kernel_range
 used inside x86 setup_arch(), add the kernel code and data range between `_text` and `_end` to E820_TYPE_RAM range, which includes kernel text, kernel data and initialization data.
 

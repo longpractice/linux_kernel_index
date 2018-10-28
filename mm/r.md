@@ -1,5 +1,8 @@
 ## r
 
+## reserve_bios_regions
+reserve bios region which is guaranteed to start between BIOS_START_MIN and BIOS_START_MAX(128k and 640k) and end to 1mb. It also covers the range of EBDA(Extended BIOS Data Area).
+
 ## reserve_bootmem
 arch-irrelavant code to mark none-free pages in boot allocator, arch-specific code will call this code to mark according to its only need. No longer used by x86 though.
 

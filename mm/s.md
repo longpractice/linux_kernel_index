@@ -26,10 +26,22 @@ global starte routine that is executed after kernel loading to start various sub
 routine used in start_kernel(). Contains architecture specific code that is responsible for boot-time initializations.
 Related to memory management are
 
-1. e820__memory_setup();
-2. e820_add_kernel_range();
-3. trim_bios_range();
-4. as below, find the last pfn to max_pfn
+
+1. 	`memblock_reserve(__pa_symbol(_text), (unsigned long)__bss_stop - (unsigned long)_text);`
+   Reserve the bss area is reserved.
+
+2. ```c
+	/*
+	 * Make sure page 0 is always reserved because on systems with
+	 * L1TF its contents can be leaked to user processes.
+	 */
+	memblock_reserve(0, PAGE_SIZE);
+	```
+	Reserve the first page.
+3. e820__memory_setup();
+4. e820_add_kernel_range();
+5. trim_bios_range();
+6. as below, find the last pfn to max_pfn
 ```c
 	/*
 	* partially used pages are not usable - thus
@@ -49,7 +61,10 @@ Related to memory management are
 ```
 6. high_memory = (void *)__va(max_pfn * PAGE_SIZE - 1) + 1; set the high_memory to be the virtual address corresponding to the max_pfn.
 7. e820__memblock_setup();
-
+8. reserve_bios_regions();
+9. trim_platform_memory_ranges();
+10. trim_low_memory_range();
+	
 ## setup_bootmem_allocator
 arch specific routine to setup bootmem allocator, no longer used by x86 though. In x86, it only does printing.
 
