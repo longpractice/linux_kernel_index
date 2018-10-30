@@ -46,7 +46,7 @@ the memory_map_bottom_up or memory_map_top_down will call init_range_memory_mapp
 in x86-64, init_memory_mapping directly map the available physical memory into the virtual address space portion of the kernel starting from PAGE_OFFSET. This runs before bootmem is initialized and gets pages directly from the physical memory. To access them they are temporarily mapped. Inside, it calls kernel_physical_mapping_init for the ranges.
 
 ## initmem_init
-in x86, a function called inside setup_arch() to set up the bootmem(the boot memory allocator). It will call setup_bootmem_allocator().
+in x86-64 UMA, a function called inside setup_arch() to mainly set the memory node number zero to the memory blocks. In x86-32 UMA version, it does slightly more than that by additionally setting high_memory and __vmalloc_start_set.  It will call setup_bootmem_allocator() which actually does nothing more than printing in x86.
 
 ## __init 
 ```c

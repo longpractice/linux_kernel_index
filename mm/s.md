@@ -66,7 +66,7 @@ Related to memory management are
 10. trim_platform_memory_ranges();
 11. trim_low_memory_range();
 12. init_mem_mapping();
-	
+13. initmem_init(); //just set node number 0 for UMA
 ## setup_bootmem_allocator
 arch specific routine to setup bootmem allocator, no longer used by x86 though. In x86, it only does printing.
 
@@ -114,6 +114,18 @@ the first 47 bits of a virtual address, that is [0, 46], can be arbitrarily set.
 The virtual address of the lower half is [0x0, 0x0000 7fff ffff ffff], while the subset for the top half is [0xFFFF 8000 0000 0000, 0xFFFF FFFF FFFF FFFF]. 
 
 The lower half is used for user space. The higher space is used for kernel space.
+
+## split_mem_range
+
+split_mem_range() is a helper function that
+takes a range (for example "starting at the 0M address line and ending at the
+512M address line") and returns a list of suitable ranges for mappings, while
+applying some rules like "Don't use a hugepage for the first 4M on 32-bit".  So
+what comes back is an array that basically says something like "Use a 4K page
+at 0, a 4K page at 4K, a 4K at 8/12/... up to "4K at (2M-4))", a 2M hugepage at
+2M, 4M... 508M. Or something else suitable for the kernel config (32/64 bit,
+etc, look at the #ifdefs to figure out exactly what it does for a given address
+location)
 
 ## steal_suitable_fallback
 This function implements actual steal behavior. If order is large enough, we can steal whole pageblock. If not, we first move freepages in this pageblock to our migratetype and determine how many already-allocated pages are there in the pageblock with a compatible migratetype. If at least half of the pages are free or compatible, we can change migratetype of the pageblock itself, so pages freed in the future will be put in the correct free list.

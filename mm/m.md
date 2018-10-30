@@ -152,6 +152,29 @@ enum memblock_flags {
 ## memblock_insert_region
 put a certain region at a certain index after shifting the following region by one region. 
 
+## memblock_isolate_range
+```c
+/**
+ * memblock_isolate_range - isolate given range into disjoint memblocks
+ * @type: memblock type to isolate range for
+ * @base: base of range to isolate
+ * @size: size of range to isolate
+ * @start_rgn: out parameter for the start of isolated region
+ * @end_rgn: out parameter for the end of isolated region
+ *
+ * Walk @type and ensure that regions don't cross the boundaries defined by
+ * [@base, @base + @size).  Crossing regions are split at the boundaries,
+ * which may create at most two more regions.  The index of the first
+ * region inside the range is returned in *@start_rgn and end in *@end_rgn.
+ *
+ * Return:
+ * 0 on success, -errno on failure.
+ */
+static int __init_memblock memblock_isolate_range(struct memblock_type *type,
+					phys_addr_t base, phys_addr_t size,
+					int *start_rgn, int *end_rgn)
+```
+
 ## memblock_region
 one memblock_region is a segment of contiguous memory which is used for composing one memblock_type(which is not a type enum, instead it is an array of memory regions with same type).
 ```c
@@ -174,6 +197,13 @@ struct memblock_region {
 
 ## memblock_reserve
 add a certain memory range to memblock.reserved memory type.
+
+## memblock_set_node
+set node to a certain range of memory in a memblock type. Note that since the memblock type regions may cover the pased-in range boundaries, memblock_isolate_range has to be called to split these regions so that the node could be set for the splited regions
+From memblock.c:
+```
+The early architecture setup should tell memblock what the physical memory layout is by using :c:func:`memblock_add` or :c:func:`memblock_add_node` functions. The first function does not assign the region to a NUMA node and it is appropriate for UMA systems. Yet, it is possible to use it on NUMA systems as well and assign the region to a NUMA node later in the setup process using :c:func:`memblock_set_node`. The :c:func:`memblock_add_node` performs such an assignment directly.
+```
 
 ## memblock_type
 Note that a memblock_type is not a certain "type". It is a collection of regions with same type(see `memblock` for certain types).
