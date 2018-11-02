@@ -3,7 +3,7 @@
 ## kernel_physical_mapping_init()
 routine used by init_memory_mapping, defined in arch/x86/mm/init_64.c and init32_c. 
 For init_64.c:
-Create page table mapping for the physical memory for specific physical addresses. The virtual and physical address have to be aligned on PMD level down. It returns the last physical address mapped.
+Create page table(only reach pte level, not struct page inited yet) mapping for the physical memory for specific physical addresses. The virtual and physical address have to be aligned on PMD level down. It returns the last physical address mapped.
 
 
 

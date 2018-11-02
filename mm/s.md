@@ -66,7 +66,24 @@ Related to memory management are
 10. trim_platform_memory_ranges();
 11. trim_low_memory_range();
 12. init_mem_mapping();
+note the pgd-p4d-pmd-pte are inited here
 13. initmem_init(); //just set node number 0 for UMA
+14. x86_init.paging.pagetable_init(); 
+    Note that each struct page is inited inside here
+    calls native_pagetable_init() which has different definitions for x86-32 and x86-64
+    Note that paging is of type x86_init_paging, quoting x86_init.h
+    ```c
+	/**
+	* struct x86_init_paging - platform specific paging functions
+	* @pagetable_init:	platform specific paging initialization call to setup
+	*			the kernel pagetables and prepare accessors functions.
+	*			Callback must call paging_init(). Called once after the
+	*			direct mapping for phys memory is available.
+	*/
+	struct x86_init_paging {
+		void (*pagetable_init)(void);
+	};
+	```
 ## setup_bootmem_allocator
 arch specific routine to setup bootmem allocator, no longer used by x86 though. In x86, it only does printing.
 
@@ -134,5 +151,10 @@ This function implements actual steal behavior. If order is large enough, we can
 in x86-64, the kernel text is mapped into the region starting from __START_KERNEL, which is __START_KERNEL_MAP plus a compile-time configurable offset given by CONFIG_PHYSICAL_START. 
 
 ## __START_KERNEL
+
 ## System.map
 each time the kernel is compiled, a file named System.map is generated and stored in the source base directory. It shows the symbols and their addresses. The information during runtime could also be read from /proc/iomem.
+
+## swapper_pg_dir[]
+a def of init_top_pgt[].
+init_top_pgt was renamed from init_level4_pgt. It is the init time pgd array.

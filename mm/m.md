@@ -256,6 +256,10 @@ note MIGRATE_ISOLATE is a special virtual zone that is required to move physical
 Must be implemented by all architectures.
 creates a pte entry; a page instance and the desired page access permissions must be passed as parameters
 
+## memmap_init_zone
+init all the pages of the current zone using __init_single_page.
+it also mark the block movable using set_pageblock_migratetype so that blocks are reserved for movable at startup. This will force kernkel allocations to reserve thir blocks rather than leaking throughout the address space during boot when many long-lived kernkel allocations are mode.
+
 ## mem_map
 mem_map is an global array holding all page frames `struct page`
 

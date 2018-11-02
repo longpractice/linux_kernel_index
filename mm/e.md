@@ -1,5 +1,11 @@
 # e
 
+## early_ioremap_page_table_range_init
+set up the kernel fixed mappings, only the page table structures need to be setup, the actual mappings will be set by set_fixmap().
+Since only the page table structures need to be setup, the function uses page_table_range_init to init the page table structure.
+
+
+
 ## EBDA
 Extended Bios Data Area.
 

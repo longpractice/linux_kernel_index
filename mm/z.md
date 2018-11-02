@@ -193,6 +193,10 @@ It is configurable by `CONFIG_ZONE_DMA`, ZONE_DMA is unnecessary for a large num
 
 It is not useful for 32 bits architecture.
 
+## zone_init_free_list
+initialize the zone buddy allocator related field of zone->free_area(by using INIT_LIST_HEAD). The zone->free_area[order].nr_free is set to 0.
+
+
 ## zonelist_node_idx
 get the node index of the zone
 ```c
@@ -228,10 +232,44 @@ a virtual zone used for marking range of memory that is movable. In contrast to 
 ## ZONE_NORMAL
 Normal addressable memory is in ZONE_NORMAL. DMA operations can be performed on pages in ZONE_NORMAL if the DMA devices support transfers to all addressable memory. This is currently the only zone guaranteed to be possible present on all architectures. It is, however, not guaranteed that the zone must be equipped with memory. If, for instance, an AMD64 system has 2GiB of RAM, then all of it will belong to ZONE_DMA32, and ZONE_NORMAL will be empty.
 
+## zone_sizes_init()
+called by paging_init().'
+
+arch/x86/mm/init.c
+```c
+void __init zone_sizes_init(void)
+{
+	unsigned long max_zone_pfns[MAX_NR_ZONES];
+
+	memset(max_zone_pfns, 0, sizeof(max_zone_pfns));
+
+#ifdef CONFIG_ZONE_DMA
+	max_zone_pfns[ZONE_DMA]		= min(MAX_DMA_PFN, max_low_pfn);
+#endif
+#ifdef CONFIG_ZONE_DMA32
+	max_zone_pfns[ZONE_DMA32]	= min(MAX_DMA32_PFN, max_low_pfn);
+#endif
+	max_zone_pfns[ZONE_NORMAL]	= max_low_pfn;
+#ifdef CONFIG_HIGHMEM
+	max_zone_pfns[ZONE_HIGHMEM]	= max_pfn;
+#endif
+
+	free_area_init_nodes(max_zone_pfns);
+}
+```
+it first set up the maximum pfn for all the zones and delegate the task to free_area_init_nodes();
 
 
 ## zone_pcp_init
-set up the zone pageset with the boot pageset.
+set up the zone pageset with the boot pageset by 
+```c
+/*
+	* per cpu subsystem is not up at this point. The following code
+	* relies on the ability of the linker to provide the
+	* offset of a (static) per cpu variable into the per cpu area.
+	*/
+zone->pageset = &bootpageset
+````
 
 ## zoneref
 This struct contains information about a zone in a zonelist. It is stored here to avoid dereferences into large structures and lookups of tables.

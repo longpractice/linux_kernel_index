@@ -37,6 +37,17 @@ enum pageblock_bits {
 ## pageblock_flags
 field in `struct zone`, it is an array of unsigned long. It has enough space to hold bit property of all page blocks. Each block needs NR_PAGEBLOCKBITS bits which is 4 bits. So one element of pageblock_flags in 64 bit machine could hold flags for 16 page blocks. 
 
+## page_table_range_init
+This function initializes a certain range of kernel virtual memory
+with new bootmem page tables, everywhere page tables are missing in
+the given range.
+NOTE: The pagetables are allocated contiguous on the physical space
+so we can cache the place of the first one and move around without
+checking the pgd every time.
+
+This function only init to the level of pmd, the ptes are not set. This is useful then when we only want the page table data structures but not want to set the pte yet.
+
+
 ## page_zone
 from a page instance, get a zone that the page is in.
 Note that the node number as well as the zone number information are stored inside
@@ -48,6 +59,10 @@ static inline struct zone *page_zone(const struct page *page)
 	return &NODE_DATA(page_to_nid(page))->node_zones[page_zonenum(page)];
 }
 ```
+
+## permanent_kmaps_init
+if CONFIG_HIGHMEM is undefined, it does nothing.
+If CONFIG_HIGHMEM is defined, it sets up the 
 
 ## PF_MEMALLOC
 Per process flag, this flag is used within the kernel to indicate that a thread is currently executing a memory allocation. Therefore it is allowed to recursively allocate any memory it requires ignoring watermarks and without being forced write out dirty pages.
@@ -120,20 +135,27 @@ a flag in superfluous bit in PTE entry. Specify whether a normal user process is
 a flag in superfluous bit in PTE entry. Specify whether a normal user process is allowed to execute the machine code in the page
 
 ## paging_init()
-in x86, called by setup_arch(). For x86-32, paging_init() is responsible for setting up the page tables that can be used only by the kernel and are not accessible in user space. 
+in x86, called by setup_arch() through x86_init.paging.pagetable_init() which is a function pointer pointing to paging_init(). For x86-32, paging_init() is responsible for setting up the page tables that can be used only by the kernel and are not accessible in user space. 
+platform specific paging initialization call to setup the kernel pagetables and prepare accessors functions. Called once after the direct mapping for phys memory is available.
 
-In both x86-64 and x86-32, the calling sequence is
+In x86-64:
+calling sequence is
 paging_init()-->
-zone_sizes_init()-->
-free_area_init_nodes()-->
-free_area_init_node()-->
-free_area_init_core()-->
-zone_init_internals()-->
-zone_pcp_init()
+  zone_sizes_init()-->
+    free_area_init_nodes()-->
+      free_area_init_node()-->
+        free_area_init_core()-->
+          zone_init_internals()-->
+            zone_pcp_init()
  
+note that here free_area_init_nodes, zone_init_internals and zone_pcp_init are already arch-independent. zone_sizes_init() is the same for x86-32 and x86-64.
+
+In x86-32:
+
+the difference from x86-64 version is that, before calling zone_sizes_init(), paging_init() also calls pagetable_init().
 
 ## pagetable_init()
-in x86-32, called by paging_init() 
+used only in x86-32,  defined in x86/mm/init_32.c, called by paging_init(), it simply calls permanent_kmaps_init(swapper_pg_dir). Note that only a 32bit arch need permanent_kmaps.
 
 ## parse_early_param()
 routine used in setup_arch() in start_kernel(). It concentrates on arguments like mem=XXX, highmen=XXX, or memmap=XXX arguments. The administrator can overwrite the size of available memory or manualy define memory areas if the kernel calculates an incorrect value or is proved with a wrong value by the BIOS. This option is only of relevance on older computers. highmem= permits overwriting of the highmen size value detected. It can be used on machines with a very large RAM configuration to limit available RAM size - as it sometimes yields performance gains.
@@ -198,6 +220,26 @@ If possible, the per-CPU caches are not filled with individual pages but with mu
 ## __pgprot
 this data type holds addtional bits in an PTE entry
 
+## pgdat_init_internals
+used by free_area_init_core()
+
+it calls several methods to init several pglist_data parts(mostly only available under specific configuration as shown below):
+
+pgdat_resize_init: used for init pglist_data->node_size_lock if CONFIG_MEMORY_HOTPLUG. If not CONFIG_MEMORY_HOTPLUG, pgdat_resize_init does nothing. pglist_data->node_size_lock is not defined if not CONFIG_MEMORY_HOTPLUG.
+
+pgdat_init_numabalancing: used for initing fields defined only when CONFIG_NUMA_BALANCING, these fields are pglist_data::numabalancing_migrate_lock, pglist_data::numabalancing_migrate_nr_pages, and pglist_data::numabalancing_migrate_next_window. It does nothing if not CONFIG_NUMA_BALANCING.
+
+pgdat_init_split_queue: when CONFIG_TRANSPARENT_HUGEPAGE, it init pglist_data fields of split_queue_lock, split_queue and split_queue_len. When not CONFIG_TRANSPARENT_HUGEPAGE, does nothing.
+
+pgdat_init_kcompactd: if CONFIG_COMPACTION, it init paglist_data field of kcompactd_wait, otherwise, does nothing.
+
+init_waitqueue_head(&pgdat->kswapd_wait): nothing to say here 
+init_waitqueue_(&pgdat->pfmemalloc_wait): nothing to say here
+
+pgdat_page_ext_init(), init node_page_ext which is available when CONFIG_PAGE_EXTENSION
+
+spin_lock_init(&pgdat->lru_lock);
+lruvec_init(node_lruvec(pgdat));
 ## pgd_alloc
 reserve and initialize memory to hold a complete page global directory table
 

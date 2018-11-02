@@ -72,9 +72,86 @@ nr_free donates the number of 2^order pages.
 
 free_list is the used to link the segments of memories. Only the first page of the memory area is linked.
 
+## free_area_init_core
+page_alloc.c used by free_area_init_node
+
+Set up the zone data structures:
+- mark all pages reserved
+- mark all memory queues empty
+- clear the memory bitmaps
+
+ NOTE: pgdat should get zeroed by caller.
+
+ NOTE: this function is only called during early init.
+
+
+calling sequence:
+
+pgdat_init_internals(pgdat):
+init several spinlocks, wait queues, lruvec and some configuration specific fields of pgdat
+
+	
+pgdat->per_cpu_nodestats = &boot_nodestats;
+
+it then goes through all the zones, for each zone:
+
+
+
+it firstly needs to calculate the freesize(inited as zone->present_pages). This affects the watermark and per-cpu initialisations. Firstly the memory_map will take some space, it is firstly substracted. Then it substract the size of the dma_reserve range. 
+
+Then zone_init_internal to init the zone. The important part of zone_init_internal is that it calls the zone_pcp_init.
+
+Then setup_usemap(pgdat, zone, zone_start_pfn, size) to allocate pageblock_flags of the zone
+
+Then init_currently_empty_zone which calls the zone_init_free_lists(zone, zone_start_pfn, size) which inits buddy allocation related zone->free_area and zone->free_area->fee_list fields(zone->free_area[]->nr_free is set to zero). 
+
+Then memmap_init
+
+
+
+
+ 
+## free_area_init_node
+called by free_area_init_nodes to init the pg_data_t of one node with a passed-param of pgdat. 
+It firstly get the pg_data_t from nid using NODE_DATA which need to be provided by all architectures.
+
+Then it calculates the start pfn and total number of pages using get_pfn_range_for_nid and calculate_node_totalpages. Note that calculate_node_totalpages sets zone->spanned_pages, zone->present_pages and zone->zone_start_pfn as well as pgdat->node_spanned_pages and pgdat->node_present_pages.
+
+
 ## free_area_init_nodes
+quote mm.h
+```c
+/*
+ * With CONFIG_HAVE_MEMBLOCK_NODE_MAP set, an architecture may initialise its
+ * zones, allocate the backing mem_map and account for memory holes in a more
+ * architecture independent manner. This is a substitute for creating the
+ * zone_sizes[] and zholes_size[] arrays and passing them to
+ * free_area_init_node()
+ *
+ * An architecture is expected to register range of page frames backed by
+ * physical memory with memblock_add[_node]() before calling
+ * free_area_init_nodes() passing in the PFN each zone ends at. At a basic
+ * usage, an architecture is expected to do something like
+ *
+ * unsigned long max_zone_pfns[MAX_NR_ZONES] = {max_dma, max_normal_pfn,
+ * 							 max_highmem_pfn};
+ * for_each_valid_physical_page_range()
+ * 	memblock_add_node(base, size, nid)
+ * free_area_init_nodes(max_zone_pfns);
+ *
+ * free_bootmem_with_active_regions() calls free_bootmem_node() for each
+ * registered physical page range.  Similarly
+ * sparse_memory_present_with_active_regions() calls memory_present() for
+ * each range when SPARSEMEM is enabled.
+ *
+ * See mm/page_alloc.c for more information on each function exposed by
+ * CONFIG_HAVE_MEMBLOCK_NODE_MAP.
+ */
+```
+Note that x86 should have CONFIG_HAVE_MEMBLOCK_NODE_MAP set.
 
 void __init free_area_init_nodes(unsigned long *max_zone_pfn)
+defined in /mm/page_alloc.c
 
 init all pg_data_t and zone data. @max_zone_pfn: an array of max PFNs for each zone
 

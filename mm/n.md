@@ -1,9 +1,21 @@
 # n
 
 ## native_pagetable_init()
-in x86 architecture, used by x86_init.paging.pagetable_init(); In x86-32, it is in arch/x86/mm/init_32.c. It first set up all the page tables, and then calls the static inline function called paging_init() in the same file.
+in x86 architecture, used by x86_init.paging.pagetable_init(); 
+
+In x86-32:
+
+it is defined in arch/x86/mm/init_32.c. It first remove any mappings which extend past the end of physical memory from the boot time page table.  all the page tables, and then calls the static inline function called paging_init() in the same file.
 
 paging_init() first calls **pagetable_init()** in the same file(**the naming is really confusing here**).
+
+
+In x86-64:
+native_pagetable_init is defined to be paging_init
+
+
+## __next_mem_pfn_range
+in memblock.c find a next pfn range with a specific node id. It just finds the next memblock_region that matches the node id.
 
 
 ## NODE_DATA
