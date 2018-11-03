@@ -226,7 +226,7 @@ struct memblock_type {
 	char *name;
 };
 ```
-## mem_init
+## mm_init
 routine used in start_kernel(), architecture-specific. It disables the bootmem allocator and perform the transition to the actual memory management functions.
 
 ## migratetype

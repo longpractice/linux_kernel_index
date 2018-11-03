@@ -98,7 +98,7 @@ Normally on an embedded platform, a bootstrap environment is used when the syste
 ## build_all_zonelists
 used in start_kernel(), called after setup_arch() or used in memory hot plug.
 
-if the system state is not in SYSTEM_BOOTING(eg, memory hotplug), by calling __build_all_zonelist(), it sets up the node and zone data structures. It determines the order that kernel allocates memory and frees memory. Generally speaking the highmem should be firstly allocated and then the normal memory and eventually the DMA part.
+if the system state is not in SYSTEM_BOOTING(eg, memory hotplug), by calling __build_all_zonelist(), it sets up the fallback list of zone data structures. It determines the order that kernel allocates memory and frees memory. Generally speaking the highmem should be firstly allocated and then the normal memory and eventually the DMA part.
 
 if the system state is in SYSTEM_BOOTING, it will first call build_all_zonelists_init(). build_all_zonelists_init then first calls __build_all_zonelists(NULL) and then it initializes the boot_pagesets for the per cpu pageset.
 
