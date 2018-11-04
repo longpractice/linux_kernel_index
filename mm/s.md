@@ -19,6 +19,10 @@ set ent value of a page table entry
 ## __set_fixmap
 in x86, associate the fixmap to the physical addresses
 
+## slab
+in a slab allocator, objects are put in slabs. Slabs compose caches for a specific object type. See kmem_cache for further information. Here discusses the slab data structure.
+
+Objects are not listed continuously in slabs but are distributed to a rather complicated scheme. There is management data in a slab and one slab contains multiple objects. 
 ## start_kernel
 global starte routine that is executed after kernel loading to start various subsystems
 
