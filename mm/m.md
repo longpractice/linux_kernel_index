@@ -226,8 +226,36 @@ struct memblock_type {
 	char *name;
 };
 ```
+
+## mem_init
+frees all bootmem. They are returned to the buddy system.
+
+
 ## mm_init
 routine used in start_kernel(), architecture-specific. It disables the bootmem allocator and perform the transition to the actual memory management functions.
+
+```c
+/*
+ * Set up kernel memory allocators
+ */
+static void __init mm_init(void)
+{
+	/*
+	 * page_ext requires contiguous pages,
+	 * bigger than MAX_ORDER unless SPARSEMEM.
+	 */
+	page_ext_init_flatmem();
+	mem_init();
+	kmem_cache_init();
+	pgtable_init();
+	vmalloc_init();
+	ioremap_huge_init();
+	/* Should be run before the first non-init thread is created */
+	init_espfix_bsp();
+	/* Should be run after espfix64 is set up. */
+	pti_init();
+}
+```
 
 ## migratetype
 

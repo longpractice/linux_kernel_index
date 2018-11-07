@@ -13,6 +13,8 @@ in x86-64, donates the kernel text size.
 ## KERNEL_TEXT_START
 in x86-64, donates the kernel text region start virtual address.
 
+
+
 ## kmap_get_fixmap_pte
 from a virtual address, construct a pte
 ```c
@@ -161,4 +163,222 @@ for each object, the management data(object descriptor) can be positioned either
 
 `node` is an array that contains an entry for each possible node in the system. Each entry hold an instance of kmem_cache_node that groups three slab list(full free, partially free) together in a sperate structure. The element must be placed at the end of the structure. While it formally always has MAX_NUMNODES entries, it is possible that fewer nodes are usable on NUMA machines. The array thus requires fewer entries, and the array thus requires fewer entires, and the kernel can achieve this at run time by simply allocating less memory than the array formally requires. This would not be possible if node were placed in the middle of the structure. This arrangement enables quick object allocations, since allocator routines can look up to the partial slab for a free object, and possibly move on to an empty slab if required. It also helps easier expansion of the cache with new page frames to accommodate more objects(when required), and facilitates safe and quick reclaim(slabs in empty state can be reclaimed).
 
-`
+## __kmem_cache_create
+__kmem_cache_create - Create a cache. See the added comments under Docu, firstly, the size, alignment and the flags will be adjusted. 
+
+In slab.c:
+
+it firstly set the field of align and colour_off. 
+
+It then calls the set_objfreelist_slab_cache() to set the num, gfporder, and colour field of cachep. If it turns out to be not a good fit, it will run set_off_slab_cache(). Otherwise, it goto done.
+
+set_off_slab_cache does similar things as set_objfreelist_slab_cache() but only for off_slab_cache. 
+
+For "done" used for goto, the interesting part is that if it is off_slab, we need to init the cachep->freelist_cache which is used for object descriptors that are off slab. Note that when __kmeme_cache_create is used in the sequence of kmem_cache_init() -> create_boot_cache() -> __kmem_cache_create(), slab_state is still down. The kmem_cache_init() -> create_boot_cache() -> __kmem_cache_create()->setup_cpu_cache() will point global variable kmem_cache(for allocating struct kmem_cache class) kmem_cache->node to &init_kmem_cache_node array members(0th, 2nd, ... the others 1st, 3rd, ... are used for the struct cachep->node and cachep is for allocating type struct kmem_cache_node).
+
+
+
+```c
+int __kmem_cache_create(struct kmem_cache *cachep, slab_flags_t flags)
+{
+
+	size_t ralign = BYTES_PER_WORD;
+	gfp_t gfp;
+	int err;
+/* Docu: ************* Sanitize the size, flags and the alignment ******************************/
+	unsigned int size = cachep->size;
+	/*
+	 * Check that size is in terms of words.  This is needed to avoid
+	 * unaligned accesses for some archs when redzoning is used, and makes
+	 * sure any on-slab bufctl's are also correctly aligned.
+	 */
+	size = ALIGN(size, BYTES_PER_WORD);
+
+	if (flags & SLAB_RED_ZONE) {
+		ralign = REDZONE_ALIGN;
+		/* If redzoning, ensure that the second redzone is suitably
+		 * aligned, by adjusting the object size accordingly. */
+		size = ALIGN(size, REDZONE_ALIGN);
+	}
+
+	/* 3) caller mandated alignment */
+	if (ralign < cachep->align) {
+		ralign = cachep->align;
+	}
+	/* disable debug if necessary */
+	if (ralign > __alignof__(unsigned long long))
+		flags &= ~(SLAB_RED_ZONE | SLAB_STORE_USER);
+	/*
+	 * 4) Store it.
+	 */
+	cachep->align = ralign;
+	cachep->colour_off = cache_line_size();
+	/* Offset must be a multiple of the alignment. */
+	if (cachep->colour_off < cachep->align)
+		cachep->colour_off = cachep->align;
+
+	if (slab_is_available())
+		gfp = GFP_KERNEL;
+	else
+		gfp = GFP_NOWAIT;
+
+	kasan_cache_create(cachep, &size, &flags); //Docu: not considered if CONFIG_KASAN is not configured 
+
+	size = ALIGN(size, cachep->align);
+	/*
+	 * We should restrict the number of objects in a slab to implement
+	 * byte sized index. Refer comment on SLAB_OBJ_MIN_SIZE definition.
+	 */
+	if (FREELIST_BYTE_INDEX && size < SLAB_OBJ_MIN_SIZE)
+		size = ALIGN(SLAB_OBJ_MIN_SIZE, cachep->align);
+
+/* Docu: ************* set obj freelist ******************************/
+	if (set_objfreelist_slab_cache(cachep, size, flags)) {
+		flags |= CFLGS_OBJFREELIST_SLAB;
+		goto done;
+	}
+
+/* Docu: ************* set_off_slab_cache when obj descripter is off cache ******************************/
+	if (set_off_slab_cache(cachep, size, flags)) {
+		flags |= CFLGS_OFF_SLAB;
+		goto done;
+	}
+/* Docu: ************* set_off_slab_cache when obj descripter is on cache ******************************/
+	if (set_on_slab_cache(cachep, size, flags))
+		goto done;
+
+	return -E2BIG;
+
+done:
+	cachep->freelist_size = cachep->num * sizeof(freelist_idx_t);
+	cachep->flags = flags;
+	cachep->allocflags = __GFP_COMP;
+	if (flags & SLAB_CACHE_DMA)
+		cachep->allocflags |= GFP_DMA;
+	if (flags & SLAB_RECLAIM_ACCOUNT)
+		cachep->allocflags |= __GFP_RECLAIMABLE;
+	cachep->size = size;
+	cachep->reciprocal_buffer_size = reciprocal_value(size);
+/* Docu: set feelist_cache if offslab, OFF_SLAB(cachep) will be false in kmem_cache_init->create_boot_cache->__kmem_cache_create call sequence */
+	if (OFF_SLAB(cachep)) {
+		cachep->freelist_cache =
+			kmalloc_slab(cachep->freelist_size, 0u);
+	}
+/* Docu: setup_cpu_cache will do different things according to slab_state, therefore, doing right things during initialization */
+	err = setup_cpu_cache(cachep, gfp);
+	if (err) {
+		__kmem_cache_release(cachep);
+		return err;
+	}
+
+	return 0;
+}
+
+```
+
+
+## kmem_cache_init
+Initialisation of slab allocator called in mm_init() in main.c. Called after the buddy page allocator has been initialized and the bootmem pages are returned to the buddy page allocator.
+
+It is complicated since when calling kmem_cache_init(), the slab system is not ready yet, therefore the memory used inside could not be directly initialized.
+
+For kmem_cache_init, first of all(now the global variable of slab_state is enum slab_state::down), the kmem_cache global variable is used for allocating the struct kmem_cache variable itself. It is statically allocated as kmem_cache_boot so that it does not require any dynamic allocation for now.
+
+kmem_cache_init(void):
+```c
+void __init kmem_cache_init(void)
+{
+	int i;
+
+	kmem_cache = &kmem_cache_boot;
+```
+
+
+```c
+/* internal cache of cache description objs */
+static struct kmem_cache kmem_cache_boot = {
+	.batchcount = 1,
+	.limit = BOOT_CPUCACHE_ENTRIES,
+	.shared = 1,
+	.size = sizeof(struct kmem_cache),
+	.name = "kmem_cache",
+};
+```
+
+Note that although the kmem_cache_boot is statically allocated, its field of `struct kmem_cache_node *node[MAX_NUMNODES]` is still not valid. The allocation cannot be taken from there. We need to use init_kmem_cache_node which is statically allocated.  Note that each kmem_cache_init needs MAX_NUMNODES of kmem_cache_node. init_kmem_cache_node[2 * MAX_NUMNODES] are therefore used for both the kmem_cache for allocating struct kmem_cache and the kmem_cache for allocating struct kmem_cache_node. It will be seen later how this is utilized in set_up_node().
+
+```c
+#define NUM_INIT_LISTS (2 * MAX_NUMNODES)
+static struct kmem_cache_node __initdata init_kmem_cache_node[NUM_INIT_LISTS];
+```
+
+For kmem_cache_init, then it will initialize the init_kmem_cache_node static variable using kmem_cache_node_init(which is simple to init the fields of init_kmem_cache_node[i]):
+
+
+kmem_cache_init(void): continued
+```c
+	for (i = 0; i < NUM_INIT_LISTS; i++)
+		kmem_cache_node_init(&init_kmem_cache_node[i]);
+```
+
+
+For kmem_cache_init, it then try to init the kmem_cache variable which is &kmem_cache_boot discussed before. This cache is used for allocating type struct kmem_cache. Note that the kmem_cache's last field does not need to be fully MAX_NUMNODES and be allocated according to the real number of nodes(nr_node_ids). The alignment requirements of allocating struct kmem_cache is required to be hardware cache alignment(SLAB_HWCACHE_ALIGN). kmem_cache is then put on the list of kmem_cache. From now on, the global variable of slab_state is set to PARTIAL. 
+
+kmem_cache_init(void): continued
+```c
+	/*
+	 * struct kmem_cache size depends on nr_node_ids & nr_cpu_ids
+	 */
+	create_boot_cache(kmem_cache, "kmem_cache",
+		offsetof(struct kmem_cache, node) +
+				  nr_node_ids * sizeof(struct kmem_cache_node *),
+				  SLAB_HWCACHE_ALIGN, 0, 0);
+	list_add(&kmem_cache->list, &slab_caches);
+	memcg_link_cache(kmem_cache); //doing nothing if CONFIG_MEMCG_KMEM is not defined
+	slab_state = PARTIAL;
+```
+
+the important calling routine sequence for the above part is kmem_cache_init() -> create_boot_cache() -> __kmem_cache_create(); Note that in the __kmem_cache_create(), in this perticular case, we will not have an off-slab cache here. We will have a on-slab cache since we return true from set_objfreelist_slab_cache() in __kmem_cache_create(), therefore for this cache, we do not need and do not set the kmem_cache->freelist_size in __kmem_cache_create()(in the following function from __kmeme_cache_create, kmaloc_slad give the slot in global kmalloc_caches array which is yet not initialized, we therefore overcomes the chicken-and-egg problem here):
+
+
+
+part of __kmem_cache_create() that needs to use the array of kmalloc_caches when off_slab(but that is not the case here): 
+```c
+	if (OFF_SLAB(cachep)) {
+		cachep->freelist_cache =
+			kmalloc_slab(cachep->freelist_size, 0u);
+	}.
+```
+
+
+
+
+
+
+
+
+
+## kmem_cache_node
+struct kmem_cache_node holds all the slabs for a certain node. It is contained by kmem_cache.
+```c
+/*
+ * The slab lists for all objects.
+ */
+struct kmem_cache_node {
+	spinlock_t list_lock;
+	struct list_head slabs_partial;	/* partial list first, better asm code */
+	struct list_head slabs_full;
+	struct list_head slabs_free;
+	unsigned long total_slabs;	/* length of all slab lists */
+	unsigned long free_slabs;	/* length of free slab list only */
+	unsigned long free_objects;
+	unsigned int free_limit;
+	unsigned int colour_next;	/* Per-node cache coloring */
+	struct array_cache *shared;	/* shared per node */
+	struct alien_cache **alien;	/* on other nodes */
+	unsigned long next_reap;	/* updated without locking */
+	int free_touched;		/* updated without locking */
+};
+```
+`slabs_partial`, `slab_full` and `slabs_free` holds the list of slabs of three kinds.
+

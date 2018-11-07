@@ -91,6 +91,15 @@ note the pgd-p4d-pmd-pte are inited here
 ## setup_bootmem_allocator
 arch specific routine to setup bootmem allocator, no longer used by x86 though. In x86, it only does printing.
 
+## setup_cpu_cache
+slab.c
+```c
+static int __ref setup_cpu_cache(struct kmem_cache* cachep, gfp_t gfp)
+```
+setup cachep->cpu_cache first using alloc_kmem_cache_cpus
+then setup set_up_node to init cachep->node array for each node according to the slab_state, when slab_state is DOWN, we are initing the global variable of kmem_cache which is of type struct kmem_cache and used for allocating struct kmem_cache class objects by pointing the nodes to init_kmem_cache_node array members(0th, 2nd, ...). When the slab_state is PARTIAL, we are initing the cachep used for allocating kmem_cache_nodes, and we are pointing to init_kmem_cache_node array members(1st, 3rd, ...). See also the `init_kmem_cache_node` for information.
+
+
 ## setup_pageset
 used inside build_all_zonelists() to init the boot pageset(set up the high value, set count=0, etc...).
 ```c
