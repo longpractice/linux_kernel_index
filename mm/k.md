@@ -361,7 +361,7 @@ Note that each kmem_cache needs MAX_NUMNODES of kmem_cache_node.  init_kmem_cach
 
 slab_state==DOWN at beginning
 
-kmem_cache_init then mainly inits `struct kmem_cache *kmem_cache` variable, fields kmem_cache->cpu_cache and kmem_cache->node. This cache is used for allocating vars of type struct kmem_cache. 
+kmem_cache_init then further inits `struct kmem_cache *kmem_cache` variable. This cache is used for allocating vars of type struct kmem_cache. 
 
 `offsetof(struct kmem_cache, node) +
 nr_node_ids * sizeof(struct kmem_cache_node *)` is used for calculating the size of struct kmem_cache. Note that the struct kmem_cache's last field(`struct kmem_cache_node *node[MAX_NUMNODES]`) does not need to be fully of size MAX_NUMNODES and can be shrunk according to the real number of nodes(nr_node_ids). The alignment requirements of allocating struct kmem_cache is required to be hardware cache alignment(SLAB_HWCACHE_ALIGN). kmem_cache is then put on the list of slab_caches. 
