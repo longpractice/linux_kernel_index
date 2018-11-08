@@ -278,13 +278,13 @@ done:
 
 
 ## kmem_cache_init
-Routine used for initializing slab allocator and is called in mm_init() in start_kernel()in main.c. Called after the buddy page allocator has been initialized and the bootmem are returned to the buddy page allocator. It does most of the initialization task and some small amount task is left over to kmem_cache_init_late() called later in start_kernel() directly.
+Routine used for initializing slab allocator and is called in mm_init() in start_kernel() in main.c. Called after the buddy page allocator has been initialized and the bootmem are returned to the buddy page allocator. It does most of the initialization task and some small amount task is left over to kmem_cache_init_late() called later in start_kernel() directly.
 
-kmem_cache_init is complicated since when called from mm_init(), the slab allocator system is not yet ready. Small data structures used here cannot be directly allocated using slab system. Several pointer-to-array fields in the struct kmeme_cache are particularly annoying here: fields of `struct array_cache __percpu *cpu_cache`,  `struct kmem_cache *freelist_cache` and `struct kmem_cache_node *node[MAX_NUMNODES]`. 
+kmem_cache_init is complicated since when called from mm_init(), the slab allocator system is not yet ready. Small data structures used here cannot be directly allocated using slab system. Several pointer/array fields in the struct kmeme_cache are particularly "annoying": `struct array_cache __percpu *cpu_cache`,  `struct kmem_cache *freelist_cache` and `struct kmem_cache_node *node[MAX_NUMNODES]`. 
 
 `struct array_cache __percpu *cpu_cache` field will be handled by percpu allocator which we do not discuss here. `struct kmem_cache *freelist_cache` will not be a problem unless we have off-slab caches which is not the case for the initial bootstrapping caches for allocating objects of type `struct kmem_cache` and `struct kmem_cache_node`. Therefore, the only annoying part during bootstrapping is `struct kmem_cache_node *node[MAX_NUMNODES]`.
 
-The solution is statically allocated variables. We need `static struct kmem_cache kmem_cache_boot`(note that `struct kmem_cache *kmem_cache` points to it) and the array `struct kmem_cache_node __initdata init_kmem_cache_node[NUM_INIT_LISTS=2 * MAX_NUMNODES]` with elements enough for nodes of two objects of struct kmem_cache. Using `struct kmem_cache *kmem_cache` and half of the elements in `init_kmem_cache_node` we could allocate another object of type `struct kmem_cache`. This new object and another half of elements in `init_kmem_cache_node` are used for allocating more objects of type `struct kmem_cache_node`. After this we are able to slab-allocate other types of objects with different sizes. This is not easy to understand here but you could try to read this again after you reach the end of talking about kmem_cache_init to get a better grasp.
+The solution is firstly statically allocated variables. We need `static struct kmem_cache kmem_cache_boot`(note that `struct kmem_cache *kmem_cache` points to it) and the array `struct kmem_cache_node __initdata init_kmem_cache_node[NUM_INIT_LISTS=2 * MAX_NUMNODES]` with elements enough for nodes of two objects of struct kmem_cache. Using `struct kmem_cache *kmem_cache` and half of the elements in `init_kmem_cache_node` we could allocate another object of type `struct kmem_cache`. This new object and another half of elements in `init_kmem_cache_node` are used for allocating more objects of type `struct kmem_cache_node`. After this we are able to slab-allocate other types of objects with different sizes. This is not easy to understand here but you could try to read this again after you reach the end of talking about kmem_cache_init to get a better grasp.
 
 We use global var `enum slab_state slab_state` to indicate whether the slab_state is DOWN, PARTIAL, PARTIAL_NODE, UP or FULL. It is used to branch some operations during this slab initialization process to circumvent some chick-&-egg problems, especially in set_up_node() function, as shown in detail below. 
 
@@ -329,9 +329,27 @@ kmem_cache_init(void): _step_2_
 	for (i = 0; i < NUM_INIT_LISTS; i++)
 		kmem_cache_node_init(&init_kmem_cache_node[i]);
 ```
+
 ```c
 #define NUM_INIT_LISTS (2 * MAX_NUMNODES)
 static struct kmem_cache_node __initdata init_kmem_cache_node[NUM_INIT_LISTS];
+```
+
+```c
+static void kmem_cache_node_init(struct kmem_cache_node *parent)
+{
+	INIT_LIST_HEAD(&parent->slabs_full);
+	INIT_LIST_HEAD(&parent->slabs_partial);
+	INIT_LIST_HEAD(&parent->slabs_free);
+	parent->total_slabs = 0;
+	parent->free_slabs = 0;
+	parent->shared = NULL;
+	parent->alien = NULL;
+	parent->colour_next = 0;
+	spin_lock_init(&parent->list_lock);
+	parent->free_objects = 0;
+	parent->free_touched = 0;
+}
 ```
 Note that each kmem_cache needs MAX_NUMNODES of kmem_cache_node.  init_kmem_cache_node[2 * MAX_NUMNODES] are therefore used for two slab caches, the `struct kmem_cache *kmem_cache` for allocating objs of `struct kmem_cache` and the another object of type `struct kmem_cache` for allocating objs of `struct kmem_cache_node`. We will see it later how this is utilized in set_up_node().
 
