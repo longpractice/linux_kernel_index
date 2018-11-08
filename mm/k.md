@@ -163,10 +163,79 @@ for each object, the management data(object descriptor) can be positioned either
 
 `node` is an array that contains an entry for each possible node in the system. Each entry hold an instance of kmem_cache_node that groups three slab list(full free, partially free) together in a sperate structure. The element must be placed at the end of the structure. While it formally always has MAX_NUMNODES entries, it is possible that fewer nodes are usable on NUMA machines. The array thus requires fewer entries, and the array thus requires fewer entires, and the kernel can achieve this at run time by simply allocating less memory than the array formally requires. This would not be possible if node were placed in the middle of the structure. This arrangement enables quick object allocations, since allocator routines can look up to the partial slab for a free object, and possibly move on to an empty slab if required. It also helps easier expansion of the cache with new page frames to accommodate more objects(when required), and facilitates safe and quick reclaim(slabs in empty state can be reclaimed).
 
-## __kmem_cache_create
-__kmem_cache_create - Create a cache. See the added comments under Docu, firstly, the size, alignment and the flags will be adjusted. 
+## kmem_cache_create
+```c
+struct kmem_cache *
+kmem_cache_create(const char *name, unsigned int size, unsigned int align,
+		slab_flags_t flags, void (*ctor)(void *))
+{
+	return kmem_cache_create_usercopy(name, size, align, flags, 0, 0,
+					  ctor);
+}
+```
+routine used to create a new slab cache.
 
-In slab.c:
+name is human-readable names appear in /proc/slabinfo. size is the size of managed objects in bytes. align is the alignment requirement of the allocation objects. ctor will be called when create one object. The task is delegated to kmem_cache_create_usercopy with 0 useroffset and 0 usersize.
+
+## __kmem_cache_create
+```c
+int __kmem_cache_create(struct kmem_cache *cachep, slab_flags_t flags)
+```
+
+Defined in slab.c, core function to create a cache and set the `struct kmem_cache *cachep` for this cache(*cachep must be allocated before this call). It is used in create_cache and create_boot_cache. 
+
+When calling this function, the cachep->object_size, cachep->size, cachep->align must be initialized. But some fields are not sanitized. For example cachep->size is not sanitised in that cachep->size does not need to consider alignment and in the kernel code simply set to the value of object_size before calling __kmem_cache_create(). It is not very clear in this part of code what are the requirements of cachep passed in here. We will see how cachp is further processed inside this __kmem_cache_create().
+
+---
+
+__kmem_cache_create(partial):
+```c
+int __kmem_cache_create(struct kmem_cache *cachep, slab_flags_t flags)
+{
+
+	size_t ralign = BYTES_PER_WORD;
+	gfp_t gfp;
+	int err;
+	unsigned int size = cachep->size;
+```
+the alignment ralign is firstly inited to BYTES_PER_WORD, but is subject to larger values later according to flags and cachep->align. 
+
+gfp is the buddy page allocation flag. It will be set to GFP_KERNEL or GFP_NOWAIT later. gfp will be used by setup_cpu_cache(cachep, gfp) later.
+
+size is the initial value of cachep->size which is just equal to cachep->object_size without considering alignment.
+
+
+---
+__kmem_cache_create(continue):
+```c
+	/*
+	 * Check that size is in terms of words.  This is needed to avoid
+	 * unaligned accesses for some archs when redzoning is used, and makes
+	 * sure any on-slab bufctl's are also correctly aligned.
+	 */
+	size = ALIGN(size, BYTES_PER_WORD);
+
+	if (flags & SLAB_RED_ZONE) {
+		ralign = REDZONE_ALIGN;
+		/* If redzoning, ensure that the second redzone is suitably
+		 * aligned, by adjusting the object size accordingly. */
+		size = ALIGN(size, REDZONE_ALIGN);
+	}
+
+	/* 3) caller mandated alignment */
+	if (ralign < cachep->align) {
+		ralign = cachep->align;
+	}
+```
+Firstly, we floor the size to BYTES_PER_WORD. If we have a REDZONE_ALIGN flag, which means that an additional memory area filled with a known byte pattern is placed at the start and end of each object, we make sure our size is subject also to alignment of REDZONE_ALIGN(__alignof__(unsigned long long)).  Finally, ralign is floored cachep->align.
+
+---
+
+
+
+
+
+
 
 it firstly set the field of align and colour_off. 
 
@@ -275,6 +344,49 @@ done:
 }
 
 ```
+
+
+
+## kmem_cache_create_usercopy
+Defined in slab_common.c. 
+```c
+/*
+ * kmem_cache_create_usercopy - Create a cache.
+ * @name: A string which is used in /proc/slabinfo to identify this cache.
+ * @size: The size of objects to be created in this cache.
+ * @align: The required alignment for the objects.
+ * @flags: SLAB flags
+ * @useroffset: Usercopy region offset
+ * @usersize: Usercopy region size
+ * @ctor: A constructor for the objects.
+ *
+ * Returns a ptr to the cache on success, NULL on failure.
+ * Cannot be called within a interrupt, but can be interrupted.
+ * The @ctor is run when new pages are allocated by the cache.
+ *
+ * The flags are
+ *
+ * %SLAB_POISON - Poison the slab with a known test pattern (a5a5a5a5)
+ * to catch references to uninitialised memory.
+ *
+ * %SLAB_RED_ZONE - Insert `Red' zones around the allocated memory to check
+ * for buffer overruns.
+ *
+ * %SLAB_HWCACHE_ALIGN - Align the objects in this cache to a hardware
+ * cacheline.  This can be beneficial if you're counting cycles as closely
+ * as davem.
+ */
+```
+the calling sequence is 
+
+kmem_cache_create_usercopy() -> 
+	__kmem_cache_alias() and 
+	if not that is not possible create_cache()
+
+__kmem_cache_alias() -> find_mergeable()
+
+create_cache() -> kmem_cache_zalloc() and __kmem_cache_create()
+
 
 
 ## kmem_cache_init

@@ -90,6 +90,14 @@ buddy allocation mask bit. It is set if the request is very important, that is, 
 ## __GFP_IO
 buddy allocation mak bit. It specifies that the kernel can perform I/O operation during an attempt to find fresh memory. In rael terms, this means that if the kernel begins to swap out pages during memory allocation, the selected pages may be swapped out.
 
+## GFP_KERNEL
+buddy allocation combination bits
+```c
+#define GFP_KERNEL	(__GFP_RECLAIM | __GFP_IO | __GFP_FS)
+```
+GFP_KERNEL is typical for kernel-internal allocations. The caller requires
+ZONE_NORMAL or a lower zone for direct access but can direct reclaim.
+
 ## __GFP_MOVABLE
 buddy allocation mask bit, meaning to get free pages from virtual MOVABLE zone.
 
