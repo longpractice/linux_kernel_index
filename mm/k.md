@@ -509,7 +509,7 @@ Routine used for initializing slab allocator and is called in mm_init() in start
 
 kmem_cache_init is complicated since when called from mm_init(), the slab allocator system is not yet ready. Small data structures used here cannot be directly allocated using slab system. Several pointer/array fields in the struct kmeme_cache are particularly "annoying": `struct array_cache __percpu *cpu_cache`,  `struct kmem_cache *freelist_cache` and `struct kmem_cache_node *node[MAX_NUMNODES]`. 
 
-`struct array_cache __percpu *cpu_cache` field will be handled by percpu allocator which we do not discuss here. `struct kmem_cache *freelist_cache` will not be a problem unless we have off-slab caches which is not the case for the initial bootstrapping caches for allocating objects of type `struct kmem_cache` and `struct kmem_cache_node`. Therefore, the only annoying part during bootstrapping is `struct kmem_cache_node *node[MAX_NUMNODES]`.
+`struct array_cache __percpu *cpu_cache` field will be handled by percpu allocator which we do not discuss here. `struct kmem_cache *freelist_cache` is needed for off-slab, and when we are not ready allocate freelist_cache array, we will fall back to on-slab(see calculate_slab_order and __kmem_cache_create for details). Therefore, the only annoying part during bootstrapping is `struct kmem_cache_node *node[MAX_NUMNODES]`.
 
 The solution is firstly statically allocated variables. We need `static struct kmem_cache kmem_cache_boot`(note that `struct kmem_cache *kmem_cache` points to it) and the array `struct kmem_cache_node __initdata init_kmem_cache_node[NUM_INIT_LISTS=2 * MAX_NUMNODES]` with elements enough for nodes of two objects of struct kmem_cache. Using `struct kmem_cache *kmem_cache` and half of the elements in `init_kmem_cache_node` we could allocate another object of type `struct kmem_cache`. This new object and another half of elements in `init_kmem_cache_node` are used for allocating more objects of type `struct kmem_cache_node`. After this we are able to slab-allocate other types of objects with different sizes. This is not easy to understand here but you could try to read this again after you reach the end of talking about kmem_cache_init to get a better grasp.
 
@@ -625,7 +625,7 @@ part of __kmem_cache_create() before exiting(in its "done:" part) is
 	}
 ```
 
-Note that in the __kmem_cache_create(see details in entry for `__kmem_cache_create`), in this particular case, we will not have an off-slab cache. We will have a on-slab cache and we return true from set_objfreelist_slab_cache() in __kmem_cache_create(). Therefore, for this case, we do NOT need to and do NOT set the kmem_cache->freelist_size using kmalloc_slab from __kmem_cache_create(). 
+Note that in the __kmem_cache_create(see details in entry for `__kmem_cache_create`), in this particular moment, we will not have an off-slab cache. That is because that even if we fall into the case in the call sequence of _kmem_cache_create->set_off_slab_cache->calculate_slab_order->kmalloc_slab, our entry in the kmalloc_caches will probably be null since they are not set. Therefore, for this case, we do NOT need to and do NOT set the kmem_cache->freelist_size using kmalloc_slab from __kmem_cache_create(). 
 
 In setup_cpu_cache, we will call set_up_node(kmem_cache, CACHE_CACHE) to point our `struct kmem_cache *kmem_cache`->node to the init_kmem_cache_node elements with indices of 0, 2, 4, .... This is temporary solution and later on in step 6, we will replace these static node to our dynamically allocated nodes. 
 
