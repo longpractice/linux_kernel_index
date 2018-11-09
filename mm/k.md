@@ -141,6 +141,8 @@ suppose the kernel ahs a pointer to an element in a slab and wants to determine 
 
 `colour` specifies the maximum number of colors.
 
+`colour_off` specifies the unit of colouring in bytes, say, we have colour_off as 32 and colour is 3, we will have colour of 0, 32, 64, 96, 0, 32, 64, 96, 0, 32... on different slabs
+
 `freelist_cache` 
 for each object, the management data(object descriptor) can be positioned either on the slab itself or in an external memory area allocated using kmalloc. Which alternative the kernel selects depends on the size of the slab and of the objects used. When stored outside, external object descriptors are stored in the general cache pointed to by the freelist_cache.
 
@@ -226,13 +228,126 @@ __kmem_cache_create(continue):
 	if (ralign < cachep->align) {
 		ralign = cachep->align;
 	}
+
+	/* disable debug if necessary */
+	if (ralign > __alignof__(unsigned long long))
+		flags &= ~(SLAB_RED_ZONE | SLAB_STORE_USER);
+	/*
+	 * 4) Store it.
+	 */
+	cachep->align = ralign;
 ```
-Firstly, we floor the size to BYTES_PER_WORD. If we have a REDZONE_ALIGN flag, which means that an additional memory area filled with a known byte pattern is placed at the start and end of each object, we make sure our size is subject also to alignment of REDZONE_ALIGN(__alignof__(unsigned long long)).  Finally, ralign is floored cachep->align.
+Firstly, we floor the size to BYTES_PER_WORD. If we have a REDZONE_ALIGN flag, which means that an additional memory area filled with a known byte pattern is placed at the start and end of each object, we make sure our size is subject also to alignment of REDZONE_ALIGN(__alignof__(unsigned long long)).  Then, ralign is floored to cachep->align. Note that cachep->align could have been set according to whether flags contain SLAB_HWCACHE_ALIGN and the user requirement, as seen from how the kmem_cache_create_usercopy calls create_cache():
+
+part of kmem_cache_create_usercopy which presets alignment:
+```c
+	s = create_cache(cache_name, size,
+			 calculate_alignment(flags, align, size),
+			 flags, useroffset, usersize, ctor, NULL, NULL);
+```
+
+Then if we have our alignment requirement greater than the alignment of the red zoning, we need to disable the red zoning. It is because we do not want our added red zone at the start and at the end of the object disturb the object alignment.
+
+Finally, the calculated ralign is saved back to cachep->align.
+
 
 ---
 
+__kmem_cache_create(continue):
+```c
+	cachep->colour_off = cache_line_size();
+	/* Offset must be a multiple of the alignment. */
+	if (cachep->colour_off < cachep->align)
+		cachep->colour_off = cachep->align;
+	if (slab_is_available())
+		gfp = GFP_KERNEL;
+	else
+		gfp = GFP_NOWAIT;
+
+	kasan_cache_create(cachep, &size, &flags);
+
+	size = ALIGN(size, cachep->align);
+	/*
+	 * We should restrict the number of objects in a slab to implement
+	 * byte sized index. Refer comment on SLAB_OBJ_MIN_SIZE definition.
+	 */
+	if (FREELIST_BYTE_INDEX && size < SLAB_OBJ_MIN_SIZE)
+		size = ALIGN(SLAB_OBJ_MIN_SIZE, cachep->align);
+```
+
+The colour_off is set to the larger of cache_line_size() or cachep->align. cache_line_size(). For Intel cpu, that equals to l3 cache line size in bytes. The cache line(no matter l1, l2 or l3) size for Intel Core i7 cpu is 64 bytes(64 bytes of a memory block corresponding to an address span of 64, since we have byte-addressable memory). Therefore, cache_line_size() returns, for Intel Core i7 as an example, 64. 
+
+The colour_off is set to the cache_line_size also indicates that the colouring added affects the set bits(a mem address is divided into , from higher significance bit to lower: tag bits, set bits and block offset bits) of the object address. Therefore, the objects on different slabs are more likely to go to different sets in the cache system, avoiding frequently flushing eaching other. 
+
+If we somewhat have a preset alignment requirement greater than cache_line_size(), we are quite safe that our colouring will end up affecting only the set bits. 
+
+For Core i7 L1, we have 32KB total L1 cache memory and each memory block is 64 bytes and we have therefore 32k/64 = 512 cache lines. L1 is 8 way associative and we therefore have 512/8=64 sets. That corresponds to address span of 64 * 64=4096 for the set bits which is normally much larger than the slab object alignment requirement of cachep->align. Say we have an address of 64 bits. In this example, for a cpu caching system, we have, from least significant to most significant bits, 8bits for block offset, 8 bits for set, and 48 bits for tags. Our coloring will mostly affect the set bits here.
+
+kasan_cache_create only makes a difference when KernelAddressSANitizer CONFIG_KASA is set. We do not consider it here. The size is then floored again subject to KernelAddressSANitizer. We also make sure that size is no smaller than SLAB_OBJ_MIN_SIZE.
+
+```c
+/*
+ * This restriction comes from byte sized index implementation.
+ * Page size is normally 2^12 bytes and, in this case, if we want to use
+ * byte sized index which can represent 2^8 entries, the size of the object
+ * should be equal or greater to 2^12 / 2^8 = 2^4 = 16.
+ * If minimum size of kmalloc is less than 16, we use it as minimum object
+ * size and give up to use byte sized index.
+ */
+#define SLAB_OBJ_MIN_SIZE      (KMALLOC_MIN_SIZE < 16 ? \
+                               (KMALLOC_MIN_SIZE) : 16)
+```
+---
 
 
+__kmem_cache_create(continue):
+```c
+
+	if (set_objfreelist_slab_cache(cachep, size, flags)) {
+		flags |= CFLGS_OBJFREELIST_SLAB;
+		goto done;
+	}
+
+	if (set_off_slab_cache(cachep, size, flags)) {
+		flags |= CFLGS_OFF_SLAB;
+		goto done;
+	}
+
+	if (set_on_slab_cache(cachep, size, flags))
+		goto done;
+
+	return -E2BIG;
+```
+
+This part attemps to further initialize cachep. The main decision here to make is about whether we should put object descriptors on slab or off slab. The first try and the third try are similar but with minor differences, and we will analyze this later.
+
+```c
+static bool set_objfreelist_slab_cache(struct kmem_cache *cachep,
+			size_t size, slab_flags_t flags)
+{
+	size_t left;
+
+	cachep->num = 0;
+
+	if (cachep->ctor || flags & SLAB_TYPESAFE_BY_RCU)
+		return false;
+
+	left = calculate_slab_order(cachep, size,
+			flags | CFLGS_OBJFREELIST_SLAB);
+	if (!cachep->num)
+		return false;
+
+	if (cachep->num * sizeof(freelist_idx_t) > cachep->object_size)
+		return false;
+
+	cachep->colour = left / cachep->colour_off;
+
+	return true;
+}
+```
+let's first take a look at set_objfreelist_slab_cache. To avoid going too deep in this item, we put the explanation of calculate_slab_order in its own item. It is advised to read that part first.
+
+---
 
 
 
