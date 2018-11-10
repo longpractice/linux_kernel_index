@@ -110,6 +110,8 @@ static void setup_pageset(struct per_cpu_pageset *p, unsigned long batch)
 }
 ```
 the high of the pageset is set to 6 times the batch size here.
+
+
 ## setup_per_cpu_areas
 routine used in start_kernel(). Contains architecture specific code. For SMP systems, it initialize per-CPU variables defined statically in the source code and of which there is a seperate copy for each CPU in the system. Variables of this kind are stored in a seperate section of the kernel binaries. The purpose of setup_per_cpu_areas is to create a copy of these data for each system CPU. For non-SMP systems, it does nothing.
 

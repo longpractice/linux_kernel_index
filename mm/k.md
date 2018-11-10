@@ -344,8 +344,29 @@ static bool set_objfreelist_slab_cache(struct kmem_cache *cachep,
 
 	return true;
 }
+
+static bool set_on_slab_cache(struct kmem_cache *cachep,
+			size_t size, slab_flags_t flags)
+{
+	size_t left;
+
+	cachep->num = 0;
+
+	left = calculate_slab_order(cachep, size, flags);
+	if (!cachep->num)
+		return false;
+
+	cachep->colour = left / cachep->colour_off;
+
+	return true;
+}
+
 ```
 let's first take a look at set_objfreelist_slab_cache. To avoid going too deep in this item, we put the explanation of calculate_slab_order in its own item. It is advised to read that part first.
+
+The `cachep->num * sizeof(freelist_idx_t) > cachep->object_size` condition tells us that we should try to put groups of freelist_idx_t off-slab since there would normally be a better cache type to handle this data. Note that in the third choice of set_on_slab_cache, we no longer test for this condition inside(main difference between set_objfreelist_slab_cache and set_on_slab_cache). set_on_slab_cache is our sad unwilling spare tire, and hence no such restrictions.
+
+Why would 
 
 ---
 
