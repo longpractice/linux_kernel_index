@@ -364,96 +364,56 @@ static bool set_on_slab_cache(struct kmem_cache *cachep,
 ```
 let's first take a look at set_objfreelist_slab_cache. To avoid going too deep in this item, we put the explanation of calculate_slab_order in its own item. It is advised to read that part first.
 
-The `cachep->num * sizeof(freelist_idx_t) > cachep->object_size` condition tells us that we should try to put groups of freelist_idx_t off-slab since there would normally be a better cache type to handle this data. Note that in the third choice of set_on_slab_cache, we no longer test for this condition inside(main difference between set_objfreelist_slab_cache and set_on_slab_cache). set_on_slab_cache is our sad unwilling spare tire, and hence no such restrictions.
-
-Why would 
-
----
-
-
-
-
-it firstly set the field of align and colour_off. 
-
-It then calls the set_objfreelist_slab_cache() to set the num, gfporder, and colour field of cachep. If it turns out to be not a good fit, it will run set_off_slab_cache(). Otherwise, it goto done.
-
-set_off_slab_cache does similar things as set_objfreelist_slab_cache() but only for off_slab_cache. 
-
-For "done" used for goto, the interesting part is that if it is off_slab, we need to init the cachep->freelist_cache which is used for object descriptors that are off slab. Note that when __kmeme_cache_create is used in the sequence of kmem_cache_init() -> create_boot_cache() -> __kmem_cache_create(), slab_state is still down. The kmem_cache_init() -> create_boot_cache() -> __kmem_cache_create()->setup_cpu_cache() will point global variable kmem_cache(for allocating struct kmem_cache class) kmem_cache->node to &init_kmem_cache_node array members(0th, 2nd, ... the others 1st, 3rd, ... are used for the struct cachep->node and cachep is for allocating type struct kmem_cache_node).
-
-
+The `cachep->num * sizeof(freelist_idx_t) > cachep->object_size` condition tells us that we should try to put groups of freelist_idx_t off-slab since there would normally be a better cache type to handle this data. Note that in the third choice of set_on_slab_cache, we no longer test for this condition inside(main difference between set_objfreelist_slab_cache and set_on_slab_cache). set_on_slab_cache is our sad unwilling spare tire, and hence no such restrictions. If our set_objfreelist_slab_cache suggests that we should try out other choices, we will next try set_off_slab_cache. 
 
 ```c
-int __kmem_cache_create(struct kmem_cache *cachep, slab_flags_t flags)
+static bool set_off_slab_cache(struct kmem_cache *cachep,
+			size_t size, slab_flags_t flags)
 {
+	size_t left;
 
-	size_t ralign = BYTES_PER_WORD;
-	gfp_t gfp;
-	int err;
-/* Docu: ************* Sanitize the size, flags and the alignment ******************************/
-	unsigned int size = cachep->size;
+	cachep->num = 0;
+
 	/*
-	 * Check that size is in terms of words.  This is needed to avoid
-	 * unaligned accesses for some archs when redzoning is used, and makes
-	 * sure any on-slab bufctl's are also correctly aligned.
+	 * Always use on-slab management when SLAB_NOLEAKTRACE
+	 * to avoid recursive calls into kmemleak.
 	 */
-	size = ALIGN(size, BYTES_PER_WORD);
+	if (flags & SLAB_NOLEAKTRACE)
+		return false;
 
-	if (flags & SLAB_RED_ZONE) {
-		ralign = REDZONE_ALIGN;
-		/* If redzoning, ensure that the second redzone is suitably
-		 * aligned, by adjusting the object size accordingly. */
-		size = ALIGN(size, REDZONE_ALIGN);
-	}
-
-	/* 3) caller mandated alignment */
-	if (ralign < cachep->align) {
-		ralign = cachep->align;
-	}
-	/* disable debug if necessary */
-	if (ralign > __alignof__(unsigned long long))
-		flags &= ~(SLAB_RED_ZONE | SLAB_STORE_USER);
 	/*
-	 * 4) Store it.
+	 * Size is large, assume best to place the slab management obj
+	 * off-slab (should allow better packing of objs).
 	 */
-	cachep->align = ralign;
-	cachep->colour_off = cache_line_size();
-	/* Offset must be a multiple of the alignment. */
-	if (cachep->colour_off < cachep->align)
-		cachep->colour_off = cachep->align;
+	left = calculate_slab_order(cachep, size, flags | CFLGS_OFF_SLAB);
+	if (!cachep->num)
+		return false;
 
-	if (slab_is_available())
-		gfp = GFP_KERNEL;
-	else
-		gfp = GFP_NOWAIT;
-
-	kasan_cache_create(cachep, &size, &flags); //Docu: not considered if CONFIG_KASAN is not configured 
-
-	size = ALIGN(size, cachep->align);
 	/*
-	 * We should restrict the number of objects in a slab to implement
-	 * byte sized index. Refer comment on SLAB_OBJ_MIN_SIZE definition.
+	 * If the slab has been placed off-slab, and we have enough space then
+	 * move it on-slab. This is at the expense of any extra colouring.
 	 */
-	if (FREELIST_BYTE_INDEX && size < SLAB_OBJ_MIN_SIZE)
-		size = ALIGN(SLAB_OBJ_MIN_SIZE, cachep->align);
+	if (left >= cachep->num * sizeof(freelist_idx_t))
+		return false;
 
-/* Docu: ************* set obj freelist ******************************/
-	if (set_objfreelist_slab_cache(cachep, size, flags)) {
-		flags |= CFLGS_OBJFREELIST_SLAB;
-		goto done;
-	}
+	cachep->colour = left / cachep->colour_off;
 
-/* Docu: ************* set_off_slab_cache when obj descripter is off cache ******************************/
-	if (set_off_slab_cache(cachep, size, flags)) {
-		flags |= CFLGS_OFF_SLAB;
-		goto done;
-	}
-/* Docu: ************* set_off_slab_cache when obj descripter is on cache ******************************/
-	if (set_on_slab_cache(cachep, size, flags))
-		goto done;
+	return true;
+}
 
-	return -E2BIG;
+```
+set_off_slab_cache does not enforce off-slab, instead, it will return false if it sees that off-slab is not a good choice. 
 
+Inside set_off_slab_cache, when calling calculate_slab_order, we have passed in the flag of CFLGS_OFF_SLAB. calculate_slab_order will take this into consideration(see `calculate_slab_order` for details).
+
+Then, we strategically further verify if (left >= cachep->num * sizeof(freelist_idx_t)), under which case, we would better have put it on slab and reject the off-slab advice.
+
+
+In it turns out that off-slab is not a good choice, we fall-back to on-slab in __kmem_cache_create with set_on_slab_cache.
+
+---
+__kmem_cache_create: last part 
+```c
 done:
 	cachep->freelist_size = cachep->num * sizeof(freelist_idx_t);
 	cachep->flags = flags;
@@ -464,12 +424,11 @@ done:
 		cachep->allocflags |= __GFP_RECLAIMABLE;
 	cachep->size = size;
 	cachep->reciprocal_buffer_size = reciprocal_value(size);
-/* Docu: set feelist_cache if offslab, OFF_SLAB(cachep) will be false in kmem_cache_init->create_boot_cache->__kmem_cache_create call sequence */
-	if (OFF_SLAB(cachep)) {
+		if (OFF_SLAB(cachep)) {
 		cachep->freelist_cache =
 			kmalloc_slab(cachep->freelist_size, 0u);
 	}
-/* Docu: setup_cpu_cache will do different things according to slab_state, therefore, doing right things during initialization */
+
 	err = setup_cpu_cache(cachep, gfp);
 	if (err) {
 		__kmem_cache_release(cachep);
@@ -478,8 +437,15 @@ done:
 
 	return 0;
 }
-
 ```
+in "done" label, values are stored back in cachep withs some final clean up. We create the cachep->freelist_cache if the freelist ids are off slab. As discussed in `calculate_slab_order`, off-slab will not be selected when we do not have the cache ready to allocate cachep->freelist_size during bootstrapping. We are therefore free from allocating cache->freelist_size in __kmem_cache_create during slab initializing process of kmem_cache_init.
+
+We also call setup_cpu_cache to set up the field of cachep->cpu_cache(the task is delegated to per-cpu allocator, another allocating system). 
+
+setup_cpu_cache also setup the cachep->node array, according to the slab_state(see setup_cpu_cache for details).
+
+
+
 
 
 
