@@ -1,5 +1,200 @@
 # C
 
+## ____cache_alloc
+allocate one object from a certain slab cache according to certain flags.
+```c
+static inline void *____cache_alloc(struct kmem_cache *cachep, gfp_t flags)
+{
+	void *objp;
+	struct array_cache *ac;
+
+	check_irq_off();
+
+	ac = cpu_cache_get(cachep);
+	if (likely(ac->avail)) {
+		ac->touched = 1;
+		objp = ac->entry[--ac->avail];
+
+		STATS_INC_ALLOCHIT(cachep);
+		goto out;
+	}
+
+	STATS_INC_ALLOCMISS(cachep);
+	objp = cache_alloc_refill(cachep, flags);
+	/*
+	 * the 'ac' may be updated by cache_alloc_refill(),
+	 * and kmemleak_erase() requires its correct value.
+	 */
+	ac = cpu_cache_get(cachep);
+
+out:
+	/*
+	 * To avoid a false negative, if an object that is in one of the
+	 * per-CPU caches is leaked, we need to make sure kmemleak doesn't
+	 * treat the array pointers as a reference to the object.
+	 */
+	if (objp)
+		kmemleak_erase(&ac->entry[ac->avail]);
+	return objp;
+}
+
+```
+The first choice is from CPU cache, which is likely to be hot. cpu_cache_get(cachep) get the array_cache element with some compile time checking that it is indeed a percpu var.
+If we have ac->avail, object will be taken from the percpu cache. Otherwise, we will have to call the cache_alloc_refill to refill the percpu cache from the kmem_cache->node variables.
+
+## cache_alloc_refill
+used for __cache_alloc and defined in slab.c. It is used for slab allocator to refill the cachep->cpu_cache from the slabs in cachep->node.
+
+---
+cache_alloc_refill(partial):
+```c
+static void *cache_alloc_refill(struct kmem_cache *cachep, gfp_t flags)
+{
+	int batchcount;
+	struct kmem_cache_node *n;
+	struct array_cache *ac, *shared;
+	int node;
+	void *list = NULL;
+	struct page *page;
+
+	check_irq_off();
+	node = numa_mem_id();
+
+	ac = cpu_cache_get(cachep);
+	batchcount = ac->batchcount;
+	if (!ac->touched && batchcount > BATCHREFILL_LIMIT) {
+		/*
+		 * If there was little recent activity on this cache, then
+		 * perform only a partial refill.  Otherwise we could generate
+		 * refill bouncing.
+		 */
+		batchcount = BATCHREFILL_LIMIT;
+	}
+	n = get_node(cachep, node);
+
+	BUG_ON(ac->avail > 0 || !n);
+
+```
+First we do some preparation. Remember that batchcount is the number of objects we refill once from node to the cachep->cpu_cache.
+
+---
+cache_alloc_refill(partial):
+```c
+	shared = READ_ONCE(n->shared);
+	if (!n->free_objects && (!shared || !shared->avail))
+		goto direct_grow;
+
+
+```
+When both of the following are true:
+1. there is no more free_objects on current node
+2. there is no shared array_cache or the shared array_cache has no more free objects(shared->avail == 0),
+   
+we have no more free objects in all of our slabs and we have to directly goto direct_grow label to grow the cache by adding slabs.
+
+
+---
+cache_alloc_refill(partial):
+```c
+	spin_lock(&n->list_lock);
+	shared = READ_ONCE(n->shared);
+	/* See if we can refill from the shared array */
+	if (shared && transfer_objects(ac, shared, batchcount)) {
+		shared->touched = 1;
+		goto alloc_done;
+	}
+```
+If we are not going to directly grow, we will firstly try to transfer from shared array_cache before probing the slabs in the nodes. It may only full-fill some of the batchcount. We need to further try out the nodes if our batchount is not yet zero.
+
+---
+cache_alloc_refill(partial):
+```c
+
+	while (batchcount > 0) {
+		/* Get slab alloc is to come from. */
+		page = get_first_slab(n, false);
+		if (!page)
+			goto must_grow;
+
+		check_spinlock_acquired(cachep);
+
+		batchcount = alloc_block(cachep, ac, page, batchcount);
+		fixup_slab_list(cachep, n, page, &list);
+	}
+```
+We try to fill the batchcount by finding the free page in partial filled slabs or free slabs(searched in get_first_slab). Here is a link discussing why the slab information is now in struct page: https://lwn.net/Articles/565097/. 
+
+```c
+/*
+ * Slab list should be fixed up by fixup_slab_list() for existing slab
+ * or cache_grow_end() for new slab
+ */
+static __always_inline int alloc_block(struct kmem_cache *cachep,
+		struct array_cache *ac, struct page *page, int batchcount)
+{
+	/*
+	 * There must be at least one object available for
+	 * allocation.
+	 */
+	BUG_ON(page->active >= cachep->num);
+
+	while (page->active < cachep->num && batchcount--) {
+		STATS_INC_ALLOCED(cachep); 
+		STATS_INC_ACTIVE(cachep);
+		STATS_SET_HIGH(cachep);
+
+		ac->entry[ac->avail++] = slab_get_obj(cachep, page);
+	}
+
+	return batchcount;
+}
+```
+Note that page->active shows the number of used objects in the page and the cachep->num shows the total number of objs in one slab. page->active < cachep->num therefore tells whether we still have free objects. The three calls of STATS_* functions does nothing when STATS is not defined. slab_get_obj get the free object from the page->freelist(See slab_get_obj).
+
+
+
+
+---
+cache_alloc_refill(partial):
+```
+must_grow:
+	n->free_objects -= ac->avail;
+alloc_done:
+	spin_unlock(&n->list_lock);
+	fixup_objfreelist_debug(cachep, &list);
+
+direct_grow:
+	if (unlikely(!ac->avail)) {
+		/* Check if we can use obj in pfmemalloc slab */
+		if (sk_memalloc_socks()) {
+			void *obj = cache_alloc_pfmemalloc(cachep, n, flags);
+
+			if (obj)
+				return obj;
+		}
+
+		page = cache_grow_begin(cachep, gfp_exact_node(flags), node);
+
+		/*
+		 * cache_grow_begin() can reenable interrupts,
+		 * then ac could change.
+		 */
+		ac = cpu_cache_get(cachep);
+		if (!ac->avail && page)
+			alloc_block(cachep, ac, page, batchcount);
+		cache_grow_end(cachep, page);
+
+		if (!ac->avail)
+			return NULL;
+	}
+	ac->touched = 1;
+
+	return ac->entry[--ac->avail];
+}
+```
+
+
+
 ## cache_estimate
 routine used by calculate_slab_order(). Nothing to say since the comments are good enough. This function tells us that the all slabs are page-aligned.
 

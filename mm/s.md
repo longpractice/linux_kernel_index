@@ -147,6 +147,28 @@ The virtual address of the lower half is [0x0, 0x0000 7fff ffff ffff], while the
 
 The lower half is used for user space. The higher space is used for kernel space.
 
+## slab_get_obj
+```c
+static void *slab_get_obj(struct kmem_cache *cachep, struct page *page)
+{
+	void *objp;
+
+	objp = index_to_obj(cachep, page, get_free_obj(page, page->active));
+	page->active++;
+
+	return objp;
+}
+```
+get one free object from a slab from cachep. The slab information is saved in page.
+
+```c
+static inline freelist_idx_t get_free_obj(struct page *page, unsigned int idx)
+{
+	return ((freelist_idx_t *)page->freelist)[idx];
+}
+```
+get_free_obj get a certain free object from the freelist.
+
 ## split_mem_range
 
 split_mem_range() is a helper function that

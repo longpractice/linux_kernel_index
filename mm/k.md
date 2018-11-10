@@ -319,7 +319,10 @@ __kmem_cache_create(continue):
 	return -E2BIG;
 ```
 
-This part attemps to further initialize cachep. The main decision here to make is about whether we should put object descriptors on slab or off slab. The first try and the third try are similar but with minor differences, and we will analyze this later.
+This part attemps to further initialize cachep. There are three choices of putting a freelist. set_objfreelist_slab_cache, set_off_slab_cache or set_on_slab_cache.
+
+The first one is objfreelist, which puts the freelist on one of the free objects(must be the last one to be used for ____cache_alloc) in the slab. For this mode, it is even fine when we give out this last free object for ____cache_alloc, since it is no longer a full slab or partial slab and freelist is no longer needed. 
+ 
 
 ```c
 static bool set_objfreelist_slab_cache(struct kmem_cache *cachep,
@@ -362,9 +365,10 @@ static bool set_on_slab_cache(struct kmem_cache *cachep,
 }
 
 ```
-let's first take a look at set_objfreelist_slab_cache. To avoid going too deep in this item, we put the explanation of calculate_slab_order in its own item. It is advised to read that part first.
+The first one is objfreelist, which puts the freelist on one of the free objects(must be the last one to be used for ____cache_alloc) in the slab. For this mode, it is even fine when we give out this last free object for ____cache_alloc, since it is no longer a full slab or partial slab and freelist is no longer needed. This choice is the best since it takes no extra space for freelist. In this case, when we are calculating calculate_slab_order, we pass in the CFLGS_OBJFREELIST_SLAB flag. This tells calculate_slab_order that the memory space taken by on object is the aligned size instead of aligned size + sizeof(freelist_idx_t). The `cachep->num * sizeof(freelist_idx_t) > cachep->object_size` tell us that one object space will not be enough to accomodate a freelist which is of size `cachep->num * sizeof(freelist_idx_t)` .
 
-The `cachep->num * sizeof(freelist_idx_t) > cachep->object_size` condition tells us that we should try to put groups of freelist_idx_t off-slab since there would normally be a better cache type to handle this data. Note that in the third choice of set_on_slab_cache, we no longer test for this condition inside(main difference between set_objfreelist_slab_cache and set_on_slab_cache). set_on_slab_cache is our sad unwilling spare tire, and hence no such restrictions. If our set_objfreelist_slab_cache suggests that we should try out other choices, we will next try set_off_slab_cache. 
+The third choice of set_on_slab_cache means that the freelist is put at the end of slab. The strategy of telling whether this choice is good is similar to objfreelist, but when we calculate calculate_slab_order, each object will occupy mem space of aligned size + sizeof(freelist_idx_t) and we do not need to require that the freelist size smaller than one object size.
+
 
 ```c
 static bool set_off_slab_cache(struct kmem_cache *cachep,
@@ -402,14 +406,13 @@ static bool set_off_slab_cache(struct kmem_cache *cachep,
 }
 
 ```
-set_off_slab_cache does not enforce off-slab, instead, it will return false if it sees that off-slab is not a good choice. 
+Our second choice is off-slab freelist. Which requires that we allocate the freelist using another cache. set_off_slab_cache does not enforce off-slab, instead, it will return false if it sees that off-slab is not a good choice. 
 
 Inside set_off_slab_cache, when calling calculate_slab_order, we have passed in the flag of CFLGS_OFF_SLAB. calculate_slab_order will take this into consideration(see `calculate_slab_order` for details).
 
-Then, we strategically further verify if (left >= cachep->num * sizeof(freelist_idx_t)), under which case, we would better have put it on slab and reject the off-slab advice.
+Then, we strategically further verify if (left >= cachep->num * sizeof(freelist_idx_t)), under which case, we would better put it at the end of a slab since that left will be wasted otherwise.
 
-
-In it turns out that off-slab is not a good choice, we fall-back to on-slab in __kmem_cache_create with set_on_slab_cache.
+In it turns out that off-slab is not a good choice, we finally have to put freelist on-slab at the end of slab using set_on_slab_cache. This could not fail unless our object size to too large to fit in the largest slab possible.
 
 ---
 __kmem_cache_create: last part 
@@ -803,5 +806,5 @@ struct kmem_cache_node {
 	int free_touched;		/* updated without locking */
 };
 ```
-`slabs_partial`, `slab_full` and `slabs_free` holds the list of slabs of three kinds.
+`slabs_partial`, `slab_full` and `slabs_free` each holds a list of pages. Each page donates one slab (this page is the start page of the slab) that contains a certain order of pages(order is saved in struct kmem_cache->gfporder). Slab information is saved in unions in struct page simply to avoid to waste memory. Since kmem_cache_node is the owner of the struct page when they are slabs_partial, slabs_full and slab_free, the field of `struct list_head lru` is used for list_head in this list(struct page->lru can be used as a generic list by the page owner).
 

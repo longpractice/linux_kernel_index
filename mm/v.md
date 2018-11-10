@@ -3,6 +3,20 @@
 ## __va()
 macro used by kernel to translate physical memory address(linear-shift-mappable) to virtual address using linear shifting(by PAGE_OFFSET)
 
+## __verify_pcpu_ptr
+```c
+#define __verify_pcpu_ptr(ptr)						\
+do {									\
+	const void __percpu *__vpp_verify = (typeof((ptr) + 0))NULL;	\
+	(void)__vpp_verify;						\
+} while (0)
+```
+Normally used in this_cpu_ptr macro to access a per_cpu variable while in compile time check that it is actually a __percpu variable.
+
+If ptr is not of a _percpu type, the first assignment will not compile. The "+0" is required in order to convert the pointer type from a potential array type to a pointer to a single item of the array.
+
+(void)__vpp_verify is used for avoid compiler complaining unused variables. 
+
 ## vmalloc
 in x86, a virtual memory area in kernel virtual memory space. 
 
