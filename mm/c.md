@@ -394,7 +394,9 @@ cache_grow_begin(partial):
 
 	offset *= cachep->colour_off;
 ```
-Here we set some colouring. It seems here we could not have offset as cachep->colour * cachep->colour_off which is weird here. There is also seem to some duplicated checks here. I wonder if it is some problems with the code here.
+Here we set some colouring. It is done this way since we want to make sure we could have concurrency in accessing n->colour_next without using locks(that is way before the commit of 03d1d43a1262b347a9aa814980438fff8eb32edc). offset = n->colour_next may not be the one ceiled in `if (n->colour_next >= cachep->colour) n->colour_next = 0;` since other thread may in the meantime update n->colour_next. But the check of offset >= cachep->colour deserves a patch since we should allow the boundary value of cachep->colour to be used.
+
+
 
 ```
 	/* Get slab management. */
