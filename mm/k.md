@@ -139,9 +139,9 @@ suppose the kernel ahs a pointer to an element in a slab and wants to determine 
 
 `gforder` specifies the slab size of a binray logarithm of the number of pages, or, expressed differently, the slab comprises 2^(gforder) pages.
 
-`colour` specifies the maximum number of colors. The number of colour_offs must be smaller(not allowed to equal!) this value. Say we have colour == 5, then we could only have 0*colour_off to 4*colour_off colouring.
+`colour` specifies the maximum number of colors. 
 
-`colour_off` specifies the unit of colouring in bytes. Say, we have colour_off as 32 and colour is 4, we will have colour of 0, 32, 64, 96, 0, 32, 64, 96, 0, 32... on different slabs
+`colour_off` specifies the unit of colouring in bytes. Say, we have colour_off as 32 and colour is 3, we will have colour of 0, 32, 64, 96, 0, 32, 64, 96, 0, 32... on different slabs. 
 
 `freelist_cache` 
 for each object, the management data(object descriptor) can be positioned either on the slab itself or in an external memory area allocated using kmalloc. Which alternative the kernel selects depends on the size of the slab and of the objects used. When stored outside, external object descriptors are stored in the general cache pointed to by the freelist_cache.

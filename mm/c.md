@@ -328,7 +328,6 @@ cache_grow_begin(partial):
 We then try to get more pages from the buddy page allocator. The important funciton here is
 
 ```c
-
 /*
  * Interface to system's page allocator. No need to hold the
  * kmem_cache_node ->list_lock.
@@ -394,7 +393,10 @@ cache_grow_begin(partial):
 		offset = 0;
 
 	offset *= cachep->colour_off;
+```
+Here we set some colouring. It seems here we could not have offset as cachep->colour * cachep->colour_off which is weird here. There is also seem to some duplicated checks here. I wonder if it is some problems with the code here.
 
+```
 	/* Get slab management. */
 	freelist = alloc_slabmgmt(cachep, page, offset,
 			local_flags & ~GFP_CONSTRAINT_MASK, page_node);
