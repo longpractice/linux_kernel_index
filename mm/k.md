@@ -275,9 +275,9 @@ __kmem_cache_create(continue):
 		size = ALIGN(SLAB_OBJ_MIN_SIZE, cachep->align);
 ```
 
-The colour_off is set to the larger of cache_line_size() or cachep->align. cache_line_size(). For Intel cpu, that equals to l3 cache line size in bytes. The cache line(no matter l1, l2 or l3) size for Intel Core i7 cpu is 64 bytes(64 bytes of a memory block corresponding to an address span of 64, since we have byte-addressable memory). Therefore, cache_line_size() returns, for Intel Core i7 as an example, 64. 
+The colour_off is set to the larger of cache_line_size() and cachep->align. For Intel cpu, that equals to l3 cache line size in bytes. The cache line(no matter l1, l2 or l3) size for Intel Core i7 cpu is 64 bytes(64 bytes of a memory block corresponding to an address span of 64, since we have byte-addressable memory). Therefore, cache_line_size() returns, for Intel Core i7 as an example, 64. 
 
-The colour_off is set to the cache_line_size also indicates that the colouring added affects the set bits(a mem address is divided into , from higher significance bit to lower: tag bits, set bits and block offset bits) of the object address. Therefore, the objects on different slabs are more likely to go to different sets in the cache system, avoiding frequently flushing eaching other. 
+Setting colour_off to the cache_line_size also shows that the colouring added to the beginning of the slab affects the set bits(a mem address is divided into , from higher significance bit to lower: tag bits, set bits and block offset bits) of the object address. Therefore, the objects on different slabs are more likely to go to different sets in the cache system, avoiding frequently flushing eaching other. 
 
 If we somewhat have a preset alignment requirement greater than cache_line_size(), we are quite safe that our colouring will end up affecting only the set bits. 
 
