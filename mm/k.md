@@ -321,7 +321,7 @@ __kmem_cache_create(continue):
 
 This part attemps to further initialize cachep. There are three choices of putting a freelist. set_objfreelist_slab_cache, set_off_slab_cache or set_on_slab_cache.
 
-The first one is objfreelist, which puts the freelist on one of the free objects(must be the last one to be used for ____cache_alloc) in the slab. For this mode, it is even fine when we give out this last free object for ____cache_alloc, since it is no longer a full slab or partial slab and freelist is no longer needed. 
+The first one is objfreelist, which puts the freelist on one of the free objects(must be the last one to be used for ____cache_alloc) in the slab. For this mode, it is even fine when we give out this last free object for ____cache_alloc, since it is no longer a free or partial slab(it is a full slab) and hence freelist is no longer needed. 
  
 
 ```c
