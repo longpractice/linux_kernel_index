@@ -58,6 +58,62 @@ If the first attemp of memory allocation of get_page_from_freelist in __alloc_pa
 ## ALLOC_NO_WATERMARKS
 allocation flag for buddy system, if this flag is set, the allocation does not check the watermark at all
 
+
+## alloc_slabmgmt
+
+routine used for slab allocator. When we have allocated a new slab, we need to find the correct location or allocate memory for the management data. The management data here is nothing more than the freelist array. 
+```c
+/*
+ * Get the memory for a slab management obj.
+ *
+ * For a slab cache when the slab descriptor is off-slab, the
+ * slab descriptor can't come from the same cache which is being created,
+ * Because if it is the case, that means we defer the creation of
+ * the kmalloc_{dma,}_cache of size sizeof(slab descriptor) to this point.
+ * And we eventually call down to __kmem_cache_create(), which
+ * in turn looks up in the kmalloc_{dma,}_caches for the disired-size one.
+ * This is a "chicken-and-egg" problem.
+ *
+ * So the off-slab slab descriptor shall come from the kmalloc_{dma,}_caches,
+ * which are all initialized during kmem_cache_init().
+ */
+static void *alloc_slabmgmt(struct kmem_cache *cachep,
+				   struct page *page, int colour_off,
+				   gfp_t local_flags, int nodeid)
+{
+	void *freelist;
+	void *addr = page_address(page);
+
+	page->s_mem = addr + colour_off;
+	page->active = 0;
+
+	if (OBJFREELIST_SLAB(cachep))
+		freelist = NULL;
+	else if (OFF_SLAB(cachep)) {
+		/* Slab management obj is off-slab. */
+		freelist = kmem_cache_alloc_node(cachep->freelist_cache,
+					      local_flags, nodeid);
+		if (!freelist)
+			return NULL;
+	} else {
+		/* We will use last bytes at the slab for freelist */
+		freelist = addr + (PAGE_SIZE << cachep->gfporder) -
+				cachep->freelist_size;
+	}
+
+	return freelist;
+}
+```
+
+Here we see that page->s_mem is set to the start of the first object(after the coloring). 
+
+When we have objfreelist, we need to set freelist to NULL so that when we put the first free object, the freelist will point to there. 
+
+If we have OFF_SLAB, we need to allocate from cachep->freelist_cache to store the freelist array. 
+
+If otherwise we have freelist at the end of the slab. The end address of the slab is addr + (PAGE_SIZE << cachep->gfporder).  `addr + (PAGE_SIZE << cachep->gfporder) - cachep->freelist_size` therefore gives the start address of the freelist.
+
+
 ## ALLOC_WMARK_MIN
 allocation flag for buddy system, if this flag is set, only allocate page if the zone still contains at least zone->pages_min pages.
 

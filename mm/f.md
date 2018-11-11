@@ -171,6 +171,7 @@ In the beginning, when we have 0 active objects in the slab and we want to use o
 
 When we free an object, we do --page->active and put the id of the newly freed object to our freelist[page->active]. This way, when we use it next time, it tends to be still hot.
 
+The memory location is found or allocated in routine alloc_slabmgmt during refilling of new slabs. 
 
 ## __free_one_page
 the cornerstone of memory freeing. The relevant area is added to the appropriate free_area list of the buddy system. When buddy pairs are freed, the function coalesces them into a contiguous area that is then placed in the next higher free_area list. If this reunites a further buddy pair, it is also coalesced and moved to a higher list. This procedure is repeated until all possible buddy pairs have been coalesced and the changes have been propagated upwards as far as possible.

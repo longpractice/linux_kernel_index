@@ -215,7 +215,12 @@ direct_grow:
 ```
 Now, we go in must_grow label. Before calling cache_alloc_refill, we have ac->avail == 0. We have already moved ac_avail objects from the nodes, and hence need to subtract ac->avail from n->free_objects.
 
-Then in direct_grow label, if we still have zero object in cpu_cache(ac->avail == 0), we have to fill our slabs by requesting more pages with our buddy page allocator. sk_memalloc_socks() will be false unless we have CONFIG_NET.
+Then in direct_grow label, if we still have zero object in per-cpu array_cache(ac->avail == 0), we have to fill our slabs by requesting more pages with our buddy page allocator. sk_memalloc_socks() will be false unless we have CONFIG_NET. 
+
+cache_grow_begin will try to ask for a new slab composed of orders of pages from the system buddy allcator. Then if we successfully got a new slab and we still have empty ac->avail(we could not give out one object till now), we again try to put batchcount objects from the slab in the per-cpu array_cache. 
+
+cache_grow_end postprocess the allocated but just might partially used slab by putting it in correct kmem_cache_node and adjust kmem_cache_node->free_slabs, kmem_cache_node->full_slabs and kmem_cache_node->free_objects statistics. 
+
 
 
 
@@ -370,7 +375,7 @@ static struct page *kmem_getpages(struct kmem_cache *cachep, gfp_t flags,
 }
 
 ```
-__alloc_pages_node attemps to ask for order of cachep->gfporder pages from the buddy allocator. It eventually delegate the task to __alloc_pages_nodemask which is the "heart" of the zoned buddy allocator. If we could not get any pages from buddy allocator, we let slab_out_of_memory to do some dbg print(if not debug, do nothing) and return NULL. Then memcg_charge_slab will do nothing unless we have CONFIG_MEMCG_KMEM. Then mod_lruvec_page_state will modify the some counter status stored in pglist_data->vm_state and the vm_node_state.  
+__alloc_pages_node attemps to ask for order of cachep->gfporder pages from the buddy allocator. It returns the first page on success. It eventually delegate the task to __alloc_pages_nodemask which is the "heart" of the zoned buddy allocator. If we could not get any pages from buddy allocator, we let slab_out_of_memory to do some dbg print(if not debug, do nothing) and return NULL. Then memcg_charge_slab will do nothing unless we have CONFIG_MEMCG_KMEM. Then mod_lruvec_page_state will modify the some counter status stored in pglist_data->vm_state and the vm_node_state.  
 
 
 
@@ -396,14 +401,23 @@ cache_grow_begin(partial):
 ```
 Here we set some colouring. It is done this way since we want to make sure we could have concurrency in accessing n->colour_next without using locks(that is way before the commit of 03d1d43a1262b347a9aa814980438fff8eb32edc). offset = n->colour_next may not be the one ceiled in `if (n->colour_next >= cachep->colour) n->colour_next = 0;` since other thread may in the meantime update n->colour_next. But the check of offset >= cachep->colour deserves a patch since we should allow the boundary value of cachep->colour to be used.
 
+---
 
-
-```
+cache_grow_begin(partial):
+```c
 	/* Get slab management. */
 	freelist = alloc_slabmgmt(cachep, page, offset,
 			local_flags & ~GFP_CONSTRAINT_MASK, page_node);
 	if (OFF_SLAB(cachep) && !freelist)
 		goto opps1;
+```
+Then we need to allocate or find correct location for memory of management data for the slab. The manangement data here is just the freelist for this slab. If we unfortunately could not get allocate the memory accomodating the freelist array, we have to give up, goto "oops1", give back the pages, goto failed. 
+
+
+---
+cache_grow_begin(partial):
+
+```c
 
 	slab_map_pages(cachep, page, freelist);
 
@@ -414,7 +428,16 @@ Here we set some colouring. It is done this way since we want to make sure we co
 		local_irq_disable();
 
 	return page;
+```
+slab_map_pages simply set page->slab_cache to cachep and page->freelist to freelist. kasan_poison_slab does nothing unless CONFIG_KASAN.
 
+`cache_init_objs` mainly initializes the freelist array.
+
+On success, we return page that is the first page in the slab and it represents the slab.
+
+---
+```
+cache_grow_begin(end):
 opps1:
 	kmem_freepages(cachep, page);
 failed:
@@ -425,6 +448,49 @@ failed:
 
 ```
 offset is the coloring space, calculated as n->colour_off * (++n->colour_next). n->colour_next will be set to zero if it turns to be greater or equal to the cachep->colour which is calculated according to the space left from all the objects in slab.
+
+
+## cache_init_objs
+
+static void cache_init_objs(struct kmem_cache *cachep,
+			    struct page *page)
+{
+	int i;
+	void *objp;
+	bool shuffled;
+
+	cache_init_objs_debug(cachep, page);
+
+	/* Try to randomize the freelist if enabled */
+	shuffled = shuffle_freelist(cachep, page);
+
+	if (!shuffled && OBJFREELIST_SLAB(cachep)) {
+		page->freelist = index_to_obj(cachep, page, cachep->num - 1) +
+						obj_offset(cachep);
+	}
+
+	for (i = 0; i < cachep->num; i++) {
+		objp = index_to_obj(cachep, page, i);
+		kasan_init_slab_obj(cachep, objp);
+
+		/* constructor could break poison info */
+		if (DEBUG == 0 && cachep->ctor) {
+			kasan_unpoison_object_data(cachep, objp);
+			cachep->ctor(objp);
+			kasan_poison_object_data(cachep, objp);
+		}
+
+		if (!shuffled)
+			set_free_obj(page, i, i);
+	}
+}
+
+used when adding new slabs from system buddy page allocator. Before calling this function, the freelist must be put to correct address or allocated or set to NULL when objfreelist using alloc_slabmgmt. This function basically set the freelist array elements. 
+
+We call shuffle_freelist which only shuffles when CONFIG_SLAB_FREELIST_RANDOM and otherwise does nothing. We only talk about none shuffling here.
+
+If we do not shuffle the freelist, the freelist is put at the last object of freelist since it will be the last one to be allocated. Then from the first object and the last object, we put the incremental indices in the freelist by calling set_free_obj.
+
 
 ## calculate_slab_order
 ```c
