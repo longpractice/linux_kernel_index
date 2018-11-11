@@ -167,7 +167,7 @@ static inline freelist_idx_t get_free_obj(struct page *page, unsigned int idx)
 	return ((freelist_idx_t *)page->freelist)[idx];
 }
 ```
-get_free_obj get a certain free object from the freelist.
+get_free_obj get a certain free object from the freelist. See `freelist` for details.
 
 ## split_mem_range
 

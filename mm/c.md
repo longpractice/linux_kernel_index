@@ -149,8 +149,29 @@ static __always_inline int alloc_block(struct kmem_cache *cachep,
 	return batchcount;
 }
 ```
-Note that page->active shows the number of used objects in the page and the cachep->num shows the total number of objs in one slab. page->active < cachep->num therefore tells whether we still have free objects. The three calls of STATS_* functions does nothing when STATS is not defined. slab_get_obj get the free object from the page->freelist(See slab_get_obj).
+Note that page->active shows the number of used objects in the page and the cachep->num shows the total number of objs in one slab. page->active < cachep->num therefore tells whether we still have free objects. The three calls of STATS_* functions does nothing when STATS is not defined. slab_get_obj gets the free object from the page->freelist(See slab_get_obj).
 
+Our slab will no longer be free and it will become either partial or empty. fixup_slab_list will move the slab to a correct list.
+
+```c
+
+static inline void fixup_slab_list(struct kmem_cache *cachep,
+				struct kmem_cache_node *n, struct page *page,
+				void **list)
+{
+	/* move slabp to correct slabp list: */
+	list_del(&page->lru);
+	if (page->active == cachep->num) {
+		list_add(&page->lru, &n->slabs_full);
+		if (OBJFREELIST_SLAB(cachep)) {
+			page->freelist = NULL;
+		}
+	} else
+		list_add(&page->lru, &n->slabs_partial);
+}
+```
+
+fixup_slab_list first remove the page(therefore also the slab it represents) from the its original list. It the slab is now full, it will be put in the node->slabs_full list. Otherwise, it will be put in the node->slabs_partial list. The cachep->flags is checked also to see whether we have objfreelist here which means that our freelist array will be on a free object on the slab. If we have objfreelist and we have no more free object, we set our page->freelist to NULL. This is used for marking this condition, objfreelist full slab, directly. When we put free obj on the slab, if we see that page->freelist is NULL, we will point it to the newly put free object which is the first free object(also will be the last to be used later).
 
 
 
@@ -192,6 +213,10 @@ direct_grow:
 	return ac->entry[--ac->avail];
 }
 ```
+Now, we go in must_grow label. Before calling cache_alloc_refill, we have ac->avail == 0. We have already moved ac_avail objects from the nodes, and hence need to subtract ac->avail from n->free_objects.
+
+Then in direct_grow label, if we still have zero object in cpu_cache(ac->avail == 0), we have to fill our slabs by requesting more pages with our buddy page allocator. sk_memalloc_socks() will be false unless we have CONFIG_NET.
+
 
 
 
