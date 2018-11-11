@@ -139,9 +139,9 @@ suppose the kernel ahs a pointer to an element in a slab and wants to determine 
 
 `gforder` specifies the slab size of a binray logarithm of the number of pages, or, expressed differently, the slab comprises 2^(gforder) pages.
 
-`colour` specifies the maximum number of colors.
+`colour` specifies the maximum number of colors. The number of colour_offs must be smaller(not allowed to equal!) this value. Say we have colour == 5, then we could only have 0*colour_off to 4*colour_off colouring.
 
-`colour_off` specifies the unit of colouring in bytes, say, we have colour_off as 32 and colour is 3, we will have colour of 0, 32, 64, 96, 0, 32, 64, 96, 0, 32... on different slabs
+`colour_off` specifies the unit of colouring in bytes. Say, we have colour_off as 32 and colour is 4, we will have colour of 0, 32, 64, 96, 0, 32, 64, 96, 0, 32... on different slabs
 
 `freelist_cache` 
 for each object, the management data(object descriptor) can be positioned either on the slab itself or in an external memory area allocated using kmalloc. Which alternative the kernel selects depends on the size of the slab and of the objects used. When stored outside, external object descriptors are stored in the general cache pointed to by the freelist_cache.
@@ -615,7 +615,7 @@ part of __kmem_cache_create() before exiting(in its "done:" part) is
 	}
 ```
 
-Note that in the __kmem_cache_create(see details in entry for `__kmem_cache_create`), in this particular moment, we will not have an off-slab cache. That is because that even if we fall into the case in the call sequence of _kmem_cache_create->set_off_slab_cache->calculate_slab_order->kmalloc_slab, our entry in the kmalloc_caches will probably be null since they are not set. Therefore, for this case, we do NOT need to and do NOT set the kmem_cache->freelist_size using kmalloc_slab from __kmem_cache_create(). 
+Note that in the __kmem_cache_create(see details in entry for `__kmem_cache_create`), in this particular moment, we will not have an off-slab cache. That is because that even if we fall into the case in the call sequence of _kmem_cache_create->set_off_slab_cache->calculate_slab_order->kmalloc_slab, our entry in the kmalloc_caches[KMALLOC_NORMAL][] will probably be null since they are not set. Therefore, for this case, we do NOT need to and do NOT set the kmem_cache->freelist_size using kmalloc_slab from __kmem_cache_create(). 
 
 In setup_cpu_cache, we will call set_up_node(kmem_cache, CACHE_CACHE) to point our `struct kmem_cache *kmem_cache`->node to the init_kmem_cache_node elements with indices of 0, 2, 4, .... This is temporary solution and later on in step 6, we will replace these static node to our dynamically allocated nodes. 
 
@@ -646,11 +646,11 @@ Now that we have the variable kmem_cache global on-slab cache properly initializ
 From now on, the global variable of slab_state is set to PARTIAL. 
 
 ---
-**Step 4:  setup kmalloc_caches[INDEX_NODE](which is used for allocating `struct kmem_cache_node`)**
+**Step 4:  setup kmalloc_caches[KMALLOC_NORMAL][INDEX_NODE](which is used for allocating `struct kmem_cache_node`)**
 
 slab_state==PARTIAL at beginning
 
-kmem_cache_init then initializes kmalloc_caches[INDEX_NODE]. This element is responsible of allocating objs of type `struct kmem_cache_node`. It calls create_kmalloc_cache() for this initialization.
+kmem_cache_init then initializes kmalloc_caches[KMALLOC_NORMAL][INDEX_NODE]. This element is responsible of allocating objs of type `struct kmem_cache_node`. It calls create_kmalloc_cache() for this initialization.
 
 kmem_cache_init(void): _step_4_
 ```c
@@ -658,7 +658,7 @@ kmem_cache_init(void): _step_4_
 	 * Initialize the caches that provide memory for the  kmem_cache_node
 	 * structures first.  Without this, further allocations will bug.
 	 */
-	kmalloc_caches[INDEX_NODE] = create_kmalloc_cache(
+	kmalloc_caches[KMALLOC_NORMAL][INDEX_NODE] = create_kmalloc_cache(
 				kmalloc_info[INDEX_NODE].name,
 				kmalloc_size(INDEX_NODE), ARCH_KMALLOC_FLAGS,
 				0, kmalloc_size(INDEX_NODE));
@@ -688,7 +688,7 @@ Inside create_kmalloc_cache, we first allocate a zeroed variable with name "s" o
 
 Since the SIZE_NODE==1, the s->node array will be set to the init_kmem_cache_node elements with indices of 1, 3, 5, 7... Remember in step 3, init_kmem_cache_node elements with indices 0, 2, 4, 6 ... was used for the node field of `struct kmem_cache *kmem_cache`. This is also a temporary solution and in step 6, this temporary static nodes will be replaced with properly dynamically allocated ones.
 
-Keep going with kmem_cache_init. Let's stage what we have here. We are now at a slab_state of PARTIAL_NODE. We have two objects of type struct kmem_cache, one is `kmem_cache *kmem_cache` (== &kmem_cache_boot which is static) to allocate objects of `struct kmem_cache` and the other one is kmalloc_caches[INDEX_NODE] used for allocate struct kmem_cache_node). These two objects have their node array fields point to the static init_kmem_cache_node which is only a temporary solution here which will be remedied in step 6.
+Keep going with kmem_cache_init. Let's stage what we have here. We are now at a slab_state of PARTIAL_NODE. We have two objects of type struct kmem_cache, one is `kmem_cache *kmem_cache` (== &kmem_cache_boot which is static) to allocate objects of `struct kmem_cache` and the other one is kmalloc_caches[KMALLOC_NORMAL][INDEX_NODE] used for allocate struct kmem_cache_node). These two objects have their node array fields point to the static init_kmem_cache_node which is only a temporary solution here which will be remedied in step 6.
 
 ---
 **Step 5: patch the array of size_index**
@@ -705,11 +705,11 @@ kmem_cache_init(void): _step_5_
 ```
 
 ---
-**Step 6: replace nodes of `struct kmem_cache* kmem_cache` and kmalloc_caches[INDEX_NODE] with dynamically allocated ones.**
+**Step 6: replace nodes of `struct kmem_cache* kmem_cache` and kmalloc_caches[KMALLOC_NORMAL][INDEX_NODE] with dynamically allocated ones.**
 
 slab_state = PARTIAL_NODE at beginning.
 
-Remember that in step 4, we are ready to allocate objects of type `struct kmem_cache_node`. We therefore are going to replace the node field for `struct kmem_cache* kmem_cache` and kmalloc_caches[INDEX_NODE], which pointed to static init_kmem_cache_node array, with dynamically allocated objects of type kmem_cache_node. 
+Remember that in step 4, we are ready to allocate objects of type `struct kmem_cache_node`. We therefore are going to replace the node field for `struct kmem_cache* kmem_cache` and kmalloc_caches[KMALLOC_NORMAL][INDEX_NODE], which pointed to static init_kmem_cache_node array, with dynamically allocated objects of type kmem_cache_node. 
 
 kmem_cache_init(void): _step_6_
 ```c
@@ -719,7 +719,7 @@ kmem_cache_init(void): _step_6_
 		for_each_online_node(nid) {
 			init_list(kmem_cache, &init_kmem_cache_node[CACHE_CACHE + nid], nid);
 
-			init_list(kmalloc_caches[INDEX_NODE],
+			init_list(kmalloc_caches[KMALLOC_NORMAL][INDEX_NODE],
 					  &init_kmem_cache_node[SIZE_NODE + nid], nid);
 		}
 	}
@@ -734,7 +734,7 @@ slab_state = PARTIAL_NODE at beginning;
 
 slab_state = up at end.
 
-Finally, create_kmalloc_caches will initialize the yet uninitialized elements of the global array kmem_caches(remind that one of the elements, kmem_caches[INDEX_NODE], has been initialized before).
+Finally, create_kmalloc_caches will initialize the yet uninitialized elements of the global array kmem_caches(remind that one of the elements, kmalloc_caches[KMALLOC_NORMAL][INDEX_NODE], has been initialized before).
 
 kmem_cache_init(void): _step_7_
 ```c

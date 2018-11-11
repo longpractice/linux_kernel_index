@@ -263,6 +263,165 @@ static unsigned int cache_estimate(unsigned long gfporder, size_t buffer_size,
 }
 ```
 
+## cache_grow_begin
+grow the number of slabs in a slab cache. It is defined in slab.c and used by cache_alloc_refill when we do not have enough free objects in the slabs.
+
+cache_grow_begin(partial):
+```c
+/*
+ * Grow (by 1) the number of slabs within a cache.  This is called by
+ * kmem_cache_alloc() when there are no active objs left in a cache.
+ */
+static struct page *cache_grow_begin(struct kmem_cache *cachep,
+				gfp_t flags, int nodeid)
+{
+	void *freelist;
+	size_t offset;
+	gfp_t local_flags;
+	int page_node;
+	struct kmem_cache_node *n;
+	struct page *page;
+```
+
+First we prepare some variables.
+
+---
+
+cache_grow_begin(partial):
+
+```c
+	/*
+	 * Be lazy and only check for valid flags here,  keeping it out of the
+	 * critical path in kmem_cache_alloc().
+	 */
+	if (unlikely(flags & GFP_SLAB_BUG_MASK)) {
+		gfp_t invalid_mask = flags & GFP_SLAB_BUG_MASK;
+		flags &= ~GFP_SLAB_BUG_MASK;
+		pr_warn("Unexpected gfp: %#x (%pGg). Fixing up to gfp: %#x (%pGg). Fix your code!\n",
+				invalid_mask, &invalid_mask, flags, &flags);
+		dump_stack();
+	}
+	WARN_ON_ONCE(cachep->ctor && (flags & __GFP_ZERO));
+	local_flags = flags & (GFP_CONSTRAINT_MASK|GFP_RECLAIM_MASK);
+
+	check_irq_off();
+	if (gfpflags_allow_blocking(local_flags))
+		local_irq_enable();
+```
+
+We then check the flags.
+
+---
+
+cache_grow_begin(partial):
+
+```c
+	/*
+	 * Get mem for the objs.  Attempt to allocate a physical page from
+	 * 'nodeid'.
+	 */
+	page = kmem_getpages(cachep, local_flags, nodeid);
+	if (!page)
+		goto failed;
+```
+
+We then try to get more pages from the buddy page allocator. The important funciton here is
+
+```c
+
+/*
+ * Interface to system's page allocator. No need to hold the
+ * kmem_cache_node ->list_lock.
+ *
+ * If we requested dmaable memory, we will get it. Even if we
+ * did not request dmaable memory, we might get it, but that
+ * would be relatively rare and ignorable.
+ */
+static struct page *kmem_getpages(struct kmem_cache *cachep, gfp_t flags,
+								int nodeid)
+{
+	struct page *page;
+	int nr_pages;
+
+	flags |= cachep->allocflags;
+
+	page = __alloc_pages_node(nodeid, flags, cachep->gfporder);
+	if (!page) {
+		slab_out_of_memory(cachep, flags, nodeid);
+		return NULL;
+	}
+
+	if (memcg_charge_slab(page, flags, cachep->gfporder, cachep)) {
+		__free_pages(page, cachep->gfporder);
+		return NULL;
+	}
+
+	nr_pages = (1 << cachep->gfporder);
+	if (cachep->flags & SLAB_RECLAIM_ACCOUNT)
+		mod_lruvec_page_state(page, NR_SLAB_RECLAIMABLE, nr_pages);
+	else
+		mod_lruvec_page_state(page, NR_SLAB_UNRECLAIMABLE, nr_pages);
+
+	__SetPageSlab(page);
+	/* Record if ALLOC_NO_WATERMARKS was set when allocating the slab */
+	if (sk_memalloc_socks() && page_is_pfmemalloc(page))
+		SetPageSlabPfmemalloc(page);
+
+	return page;
+}
+
+```
+__alloc_pages_node attemps to ask for order of cachep->gfporder pages from the buddy allocator. It eventually delegate the task to __alloc_pages_nodemask which is the "heart" of the zoned buddy allocator. If we could not get any pages from buddy allocator, we let slab_out_of_memory to do some dbg print(if not debug, do nothing) and return NULL. Then memcg_charge_slab will do nothing unless we have CONFIG_MEMCG_KMEM. Then mod_lruvec_page_state will modify the some counter status stored in pglist_data->vm_state and the vm_node_state.  
+
+
+
+---
+
+
+cache_grow_begin(partial):
+```c
+
+	page_node = page_to_nid(page);
+	n = get_node(cachep, page_node);
+
+	/* Get colour for the slab, and cal the next value. */
+	n->colour_next++;
+	if (n->colour_next >= cachep->colour)
+		n->colour_next = 0;
+
+	offset = n->colour_next;
+	if (offset >= cachep->colour)
+		offset = 0;
+
+	offset *= cachep->colour_off;
+
+	/* Get slab management. */
+	freelist = alloc_slabmgmt(cachep, page, offset,
+			local_flags & ~GFP_CONSTRAINT_MASK, page_node);
+	if (OFF_SLAB(cachep) && !freelist)
+		goto opps1;
+
+	slab_map_pages(cachep, page, freelist);
+
+	kasan_poison_slab(page);
+	cache_init_objs(cachep, page);
+
+	if (gfpflags_allow_blocking(local_flags))
+		local_irq_disable();
+
+	return page;
+
+opps1:
+	kmem_freepages(cachep, page);
+failed:
+	if (gfpflags_allow_blocking(local_flags))
+		local_irq_disable();
+	return NULL;
+}
+
+```
+offset is the coloring space, calculated as n->colour_off * (++n->colour_next). n->colour_next will be set to zero if it turns to be greater or equal to the cachep->colour which is calculated according to the space left from all the objects in slab.
+
 ## calculate_slab_order
 ```c
 /**

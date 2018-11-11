@@ -49,9 +49,9 @@ allocate pages for buddy zoned buddy allocator. This is the 'heart' of the zoned
 It first tries to call the get_page_from_freelist. If not succeeded, it will go into a slower method, __alloc_pages_slowpath, which contains much more details.
 
 ## __alloc_pages_slowpath
-If the first attemp of memory allocation of get_page_from_freelist in __alloc_pages_nodemask fails, we will start to go into this routine. The blow are the goto marks discussed seperately.
+If the first attemp of memory allocation of get_page_from_freelist in __alloc_pages_nodemask fails, we will start to go into this routine. 
 
-retry_cpuset
+
 
 
 
