@@ -147,6 +147,10 @@ The virtual address of the lower half is [0x0, 0x0000 7fff ffff ffff], while the
 
 The lower half is used for user space. The higher space is used for kernel space.
 
+## slab_destroy
+destroy a free slab by calling kmem_freepages which returns pages back to the buddy allocator system. If the freelist is off-slab, also dispose that.
+
+
 ## slab_get_obj
 ```c
 static void *slab_get_obj(struct kmem_cache *cachep, struct page *page)

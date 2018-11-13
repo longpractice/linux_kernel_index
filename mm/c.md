@@ -171,7 +171,7 @@ static inline void fixup_slab_list(struct kmem_cache *cachep,
 }
 ```
 
-fixup_slab_list first remove the page(therefore also the slab it represents) from the its original list. It the slab is now full, it will be put in the node->slabs_full list. Otherwise, it will be put in the node->slabs_partial list. The cachep->flags is checked also to see whether we have objfreelist here which means that our freelist array will be on a free object on the slab. If we have objfreelist and we have no more free object, we set our page->freelist to NULL. This is used for marking this condition, objfreelist full slab, directly. When we put free obj on the slab, if we see that page->freelist is NULL, we will point it to the newly put free object which is the first free object(also will be the last to be used later).
+fixup_slab_list first remove the page(therefore also the slab it represents) from the its original list.  It the slab is now full, it will be put in the node->slabs_full list. Otherwise, it will be put in the node->slabs_partial list. The cachep->flags is checked also to see whether we have objfreelist here which means that our freelist array will be on a free object on the slab. If we have objfreelist and we have no more free object, we set our page->freelist to NULL. This is used for marking this condition, objfreelist full slab, directly. When we put free obj on the slab, if we see that page->freelist is NULL, we will point it to the newly put free object which is the first free object(also will be the last to be used later).
 
 
 
@@ -267,6 +267,81 @@ static unsigned int cache_estimate(unsigned long gfporder, size_t buffer_size,
 	return num;
 }
 ```
+## cache_flusharray
+routine used in __cache_free. It moves batchcount objects from per-cpu array_cache to the slabs.
+
+---
+cache_flusharray(partial)
+```c
+static void cache_flusharray(struct kmem_cache *cachep, struct array_cache *ac)
+{
+	int batchcount;
+	struct kmem_cache_node *n;
+	int node = numa_mem_id();
+	LIST_HEAD(list);
+
+	batchcount = ac->batchcount;
+
+	check_irq_off();
+	n = get_node(cachep, node);
+	spin_lock(&n->list_lock);
+```
+
+We firstly get some preparation. node is the closes cpu executing this function with memory. The list inited here LIST_HEAD(list) is used for This node is also the place that any moved slabs in free_block() later.
+
+---
+cache_flusharray(partial)
+```c
+	if (n->shared) {
+		struct array_cache *shared_array = n->shared;
+		int max = shared_array->limit - shared_array->avail;
+		if (max) {
+			if (batchcount > max)
+				batchcount = max;
+			memcpy(&(shared_array->entry[shared_array->avail]),
+			       ac->entry, sizeof(void *) * batchcount);
+			shared_array->avail += batchcount;
+			goto free_done;
+		}
+	}
+```
+If we have n->shared available, we could choose to move the freed objects to the shared cache and other nodes can use it.
+
+Otherwise, we will call free_block to free the objects and move some freed slabs on the the current node(note that the node from numa_mem_id() may be different from that of the slab to be freed).
+
+---
+cache_flusharray(partial)
+```c
+	free_block(cachep, ac->entry, batchcount, node, &list);
+free_done:
+	spin_unlock(&n->list_lock);
+	slabs_destroy(cachep, &list);
+	ac->avail -= batchcount;
+	memmove(ac->entry, &(ac->entry[batchcount]), sizeof(void *)*ac->avail);
+}
+```
+
+After all the free jobs, we have a list(from `LIST_HEAD(list)`) of slabs that needs to be freed. It is done using slabs_destroy:
+
+```c
+static void slabs_destroy(struct kmem_cache *cachep, struct list_head *list)
+{
+	struct page *page, *n;
+
+	list_for_each_entry_safe(page, n, list, lru) {
+		list_del(&page->lru);
+		slab_destroy(cachep, page);
+	}
+}
+```
+slabs_destoy calls slab_destroy to dispose each slab.
+
+
+
+
+
+
+
 
 ## cache_grow_begin
 grow the number of slabs in a slab cache. It is defined in slab.c and used by cache_alloc_refill when we do not have enough free objects in the slabs.
@@ -448,6 +523,41 @@ failed:
 
 ```
 offset is the coloring space, calculated as n->colour_off * (++n->colour_next). n->colour_next will be set to zero if it turns to be greater or equal to the cachep->colour which is calculated according to the space left from all the objects in slab.
+
+## cache_grow_end
+```c
+static void cache_grow_end(struct kmem_cache *cachep, struct page *page)
+{
+	struct kmem_cache_node *n;
+	void *list = NULL;
+
+	check_irq_off();
+
+	if (!page)
+		return;
+
+	INIT_LIST_HEAD(&page->lru);
+	n = get_node(cachep, page_to_nid(page));
+
+	spin_lock(&n->list_lock);
+	n->total_slabs++;
+	if (!page->active) {
+		list_add_tail(&page->lru, &(n->slabs_free));
+		n->free_slabs++;
+	} else
+		fixup_slab_list(cachep, n, page, &list);
+
+	STATS_INC_GROWN(cachep);
+	n->free_objects += cachep->num - page->active;
+	spin_unlock(&n->list_lock);
+
+	fixup_objfreelist_debug(cachep, &list);
+}
+```
+
+This function puts the slab starting from the page onto a correct list. Note that it is put on the node that the page belongs to originally which may not be the current node.
+
+
 
 
 ## cache_init_objs

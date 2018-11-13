@@ -157,6 +157,81 @@ init all pg_data_t and zone data. @max_zone_pfn: an array of max PFNs for each z
 
 This will call free_area_init_node() for each active node in the system. Using the page ranges provided by memblock_set_node(), the size of each zone in each node and their holes is calculated. If the maximum PFN between two adjacent zones match, it is assumed that the zone is empty. For example, if arch_max_dma_pfn == arch_max_dma32_pfn, it is assumed that arch_max_dma32_pfn has no pages. It is also assumed that a zone starts where the previous one ended. For example, ZONE_DMA32 starts at arch_max_dma_pfn.
 
+## free_block
+```c
+/*
+ * Caller needs to acquire correct kmem_cache_node's list_lock
+ * @list: List of detached free slabs should be freed by caller
+ */
+static void free_block(struct kmem_cache *cachep, void **objpp,
+			int nr_objects, int node, struct list_head *list)
+{
+	int i;
+	struct kmem_cache_node *n = get_node(cachep, node);
+	struct page *page;
+
+	n->free_objects += nr_objects;
+
+	for (i = 0; i < nr_objects; i++) {
+		void *objp;
+		struct page *page;
+
+		objp = objpp[i];
+
+		page = virt_to_head_page(objp);
+		list_del(&page->lru);
+		check_spinlock_acquired_node(cachep, node);
+		slab_put_obj(cachep, page, objp);
+		STATS_DEC_ACTIVE(cachep);
+
+		/* fixup slab chains */
+		if (page->active == 0) {
+			list_add(&page->lru, &n->slabs_free);
+			n->free_slabs++;
+		} else {
+			/* Unconditionally move a slab to the end of the
+			 * partial list on free - maximum time for the
+			 * other objects to be freed, too.
+			 */
+			list_add_tail(&page->lru, &n->slabs_partial);
+		}
+	}
+
+	while (n->free_objects > n->free_limit && !list_empty(&n->slabs_free)) {
+		n->free_objects -= cachep->num;
+
+		page = list_last_entry(&n->slabs_free, struct page, lru);
+		list_move(&page->lru, list);
+		n->free_slabs--;
+		n->total_slabs--;
+	}
+}
+```
+free nr_objects starting from void **objpp that is on the cachep->node[node]. 
+
+We use for loop to go through each obj to be freed. We firstly call `list_del(&page->lru)` to remove the slab off its original list. As stated in `cache_grow_end`, the original list is on the node where the page originally belongs to. When we move them to a the new list, the list is on the node number passed in as a parameter. The nodes can be different. For example, when used in cache_flusharray, the node is from numa_mem_id(). Then we call `slab_put_obj` to free decrease the page->active and also put the id of the object on the freelist. Also, if we have page->freelist == NULL, which means we have objfreelist and this is our first free object, we have to put our freelist on this freed object. 
+
+After we have freed objects, our number of free slabs will grow. We do not want it to grow over n->free_list and try to dispose some slabs_free. Then we go in a while looping attempting to shrink the n->free_objects until it is no more than n->free_limit or we have n->slabs_free empty. We do this by moving the free slabs to the list provided by the caller. The caller is responsible of returning the slab to the buddy page allocator.
+
+
+```c
+static void slab_put_obj(struct kmem_cache *cachep,
+			struct page *page, void *objp)
+{
+	unsigned int objnr = obj_to_index(cachep, page, objp);
+	page->active--;
+	if (!page->freelist)
+		page->freelist = objp + obj_offset(cachep);
+
+	set_free_obj(page, page->active, objnr);
+}
+```
+
+Eventually, we move the slab on to the correct list(can be moved to n->slabs_partial or n->slabs_free). 
+
+
+
+
 ## free_bootmem(unsigned long addr, unsigned long size)
 Only whole pages can be freed because the bootmem allocator does not keep any information about page divisions. Delegate the work to __free_bootmem_core, which calculates the pages whose contents are fully held in the area to be freed. So the if one page is freed only partly once and it will not be freed when the remaining part is freed later. This is normally not a big problem because free_bootmem is very rarely used. Most memory areas allocated during system initialization are intended for basic data structures that are needed throughout kernel run time and are therefor never relinquished.
 
