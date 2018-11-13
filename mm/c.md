@@ -340,8 +340,10 @@ slabs_destoy calls slab_destroy to dispose each slab.
 
 
 
+## __cache_free
+free an object to kernel slab allocator. The call sequence is __cache_free->____cache_free which simply put the object on the current cpu array_cache.
 
-
+If the ac->avail is bigger than ac->limit, call cache_flusharray to put objects from array_cache to the slabs.
 
 ## cache_grow_begin
 grow the number of slabs in a slab cache. It is defined in slab.c and used by cache_alloc_refill when we do not have enough free objects in the slabs.

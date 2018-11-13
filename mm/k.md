@@ -13,6 +13,14 @@ in x86-64, donates the kernel text size.
 ## KERNEL_TEXT_START
 in x86-64, donates the kernel text region start virtual address.
 
+## kfree
+free kernel memory allocated from kmalloc. The task is delegated to __cache_free.
+
+## kmalloc
+memory allocation for the kernel with a similar interface with malloc in userspace.
+It will find a slab cache with a proper object size larger than the request. The job is delegated to slab_alloc.
+
+Used together with kfree to free the memory.
 
 
 ## kmap_get_fixmap_pte
